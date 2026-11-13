@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+
+# Donnees locales (cache SQLite, paris, quota)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Secrets et environnement
+.env
+.env.local
+
+# Logs et fichiers temporaires
+*.log
+tmp/
+probe*
+.DS_Store
+.idea/
+.vscode/
