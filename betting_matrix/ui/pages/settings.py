@@ -111,9 +111,9 @@ class SettingsPage(BasePage):
         )
         text = QLabel(
             "Resultats et cotes : football-data.co.uk (CSV).\n"
-            "Calendriers : OpenFootball (La Liga, Bundesliga, Serie A, Ligue 1), "
-            "OpenLigaDB (Bundesliga) et TheSportsDB (cle publique de demonstration, "
-            "Ligue des Champions partielle).\n"
+            "Calendriers : OpenFootball (La Liga, Premier League, Bundesliga, "
+            "Serie A, Ligue 1), OpenLigaDB (Bundesliga) et TheSportsDB (cle "
+            "publique de demonstration, Ligue des Champions partielle).\n"
             "Aucune cle API personnelle n'est necessaire."
         )
         text.setWordWrap(True)

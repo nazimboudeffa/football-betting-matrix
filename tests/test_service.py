@@ -54,12 +54,16 @@ class SettingsMigrationTests(unittest.TestCase):
         self.assertTrue(settings["sources_migrated"])
         self.assertTrue(settings["free_leagues_migrated"])
         self.assertTrue(settings["serie_a_ligue1_migrated"])
+        self.assertTrue(settings["premier_league_migrated"])
 
         ids = [int(league["id"]) for league in settings["tracked_leagues"]]
-        self.assertEqual(ids, [140, 78, 61, 2, 135])
-        self.assertNotIn(39, ids)
+        self.assertEqual(ids, [140, 78, 61, 2, 39, 135])
+        premier = next(
+            league for league in settings["tracked_leagues"] if int(league["id"]) == 39
+        )
+        self.assertTrue(premier["default"])
 
-    def test_already_migrated_install_receives_serie_a_and_ligue_1(self) -> None:
+    def test_already_migrated_install_receives_new_default_leagues(self) -> None:
         self.db.save_settings(
             {
                 "default_season": 2026,
@@ -76,7 +80,9 @@ class SettingsMigrationTests(unittest.TestCase):
         ids = [int(league["id"]) for league in settings["tracked_leagues"]]
         self.assertIn(135, ids)
         self.assertIn(61, ids)
+        self.assertIn(39, ids)
         self.assertTrue(settings["serie_a_ligue1_migrated"])
+        self.assertTrue(settings["premier_league_migrated"])
 
     def test_migration_is_one_time(self) -> None:
         self.service.settings()
@@ -94,11 +100,11 @@ class SettingsMigrationTests(unittest.TestCase):
 
     def test_add_league_rejects_unsupported_competition(self) -> None:
         with self.assertRaises(SourceError):
-            self.service.add_league({"id": 39, "name": "Premier League"})
+            self.service.add_league({"id": 999, "name": "Ligue inconnue"})
 
-    def test_default_leagues_include_serie_a_and_ligue_1(self) -> None:
+    def test_default_leagues_include_premier_league_serie_a_and_ligue_1(self) -> None:
         ids = {int(league["id"]) for league in DEFAULT_LEAGUES}
-        self.assertEqual(ids, {140, 78, 135, 61, 2})
+        self.assertEqual(ids, {140, 39, 78, 135, 61, 2})
 
 
 if __name__ == "__main__":

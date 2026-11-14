@@ -78,6 +78,14 @@ DEFAULT_LEAGUES: list[dict] = [
         "default": True,
     },
     {
+        "id": 39,
+        "name": "Premier League",
+        "country": "England",
+        "logo": "",
+        "flag": "",
+        "default": True,
+    },
+    {
         "id": 78,
         "name": "Bundesliga",
         "country": "Germany",

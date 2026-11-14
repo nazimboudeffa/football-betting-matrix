@@ -171,7 +171,7 @@ class MainWindow(QMainWindow):
             f"color: {MUTED}; font-size: 7.5pt; font-weight: 700; letter-spacing: 1px;"
         )
         sources_layout.addWidget(sources_title)
-        sources_text = QLabel("5 competitions\nAucune cle API requise")
+        sources_text = QLabel("6 competitions\nAucune cle API requise")
         sources_text.setStyleSheet(f"color: {TEXT_SOFT}; font-size: 8pt;")
         sources_layout.addWidget(sources_text)
         layout.addWidget(sources_card)

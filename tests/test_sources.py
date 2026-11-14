@@ -51,6 +51,16 @@ class TeamKeyTests(unittest.TestCase):
         self.assertEqual(canonical_team_key("Olympique de Marseille"), "marseille")
         self.assertEqual(canonical_team_key("Stade Rennais FC 1901"), "rennes")
 
+    def test_premier_league_aliases(self) -> None:
+        self.assertEqual(canonical_team_key("Bournemouth"), canonical_team_key("AFC Bournemouth"))
+        self.assertEqual(canonical_team_key("Brighton"), canonical_team_key("Brighton & Hove Albion FC"))
+        self.assertEqual(canonical_team_key("Man United"), canonical_team_key("Manchester United FC"))
+        self.assertEqual(canonical_team_key("Nott'm Forest"), canonical_team_key("Nottingham Forest FC"))
+        self.assertEqual(canonical_team_key("Wolves"), canonical_team_key("Wolverhampton Wanderers FC"))
+        self.assertEqual(canonical_team_key("Coventry"), canonical_team_key("Coventry City FC"))
+        self.assertEqual(canonical_team_key("Hull"), canonical_team_key("Hull City AFC"))
+        self.assertEqual(canonical_team_key("Ipswich"), canonical_team_key("Ipswich Town FC"))
+
     def test_stable_ids_are_deterministic(self) -> None:
         self.assertEqual(stable_fixture_id("free", 140, 2026, "2026-08-15"), stable_fixture_id("free", 140, 2026, "2026-08-15"))
         self.assertNotEqual(stable_fixture_id("free", 140, 2026, "2026-08-15"), stable_fixture_id("free", 140, 2026, "2026-08-16"))
@@ -65,12 +75,13 @@ class SourceSupportTests(unittest.TestCase):
     def test_free_source_coverage(self) -> None:
         current = season_start_year(date.today())
         self.assertTrue(free_source_supports(140, 2025))
+        self.assertTrue(free_source_supports(39, 2025))
         self.assertTrue(free_source_supports(78, 2025))
         self.assertTrue(free_source_supports(135, 2025))
         self.assertTrue(free_source_supports(61, 2025))
         self.assertTrue(free_source_supports(2, current))
         self.assertFalse(free_source_supports(2, current - 1))
-        self.assertFalse(free_source_supports(39, 2025))
+        self.assertFalse(free_source_supports(999, 2025))
 
 
 class CsvParsingTests(unittest.TestCase):

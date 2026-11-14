@@ -32,6 +32,7 @@ Aucune cle API n'est necessaire pour demarrer.
 ## Ligues couvertes par defaut
 
 - **La Liga (140)** : CSV football-data.co.uk + OpenFootball.
+- **Premier League (39)** : CSV + OpenFootball.
 - **Bundesliga (78)** : CSV + OpenFootball + OpenLigaDB.
 - **Serie A (135)** : CSV + OpenFootball.
 - **Ligue 1 (61)** : CSV + OpenFootball.
@@ -39,7 +40,7 @@ Aucune cle API n'est necessaire pour demarrer.
   en cours uniquement.
 
 Les ligues sont modifiables dans la page **Ligues**. La recherche et l'ajout
-sont limites a ces cinq competitions gratuites.
+sont limites a ces six competitions gratuites.
 
 ## Configuration
 
@@ -63,8 +64,8 @@ Les saisons disponibles sont pilotees par `FREE_SEASONS`. Par defaut :
 
 | Source | Usage | Remarques |
 | --- | --- | --- |
-| [football-data.co.uk](https://www.football-data.co.uk/) | Resultats et cotes CSV | La Liga, Bundesliga, Serie A, Ligue 1 ; cotes 1X2, Over/Under 2.5 |
-| [OpenFootball](https://github.com/openfootball/football.json) | Calendriers JSON | La Liga, Bundesliga, Serie A, Ligue 1 |
+| [football-data.co.uk](https://www.football-data.co.uk/) | Resultats et cotes CSV | La Liga, Premier League, Bundesliga, Serie A, Ligue 1 ; cotes 1X2, Over/Under 2.5 |
+| [OpenFootball](https://github.com/openfootball/football.json) | Calendriers JSON | La Liga, Premier League, Bundesliga, Serie A, Ligue 1 |
 | [OpenLigaDB](https://api.openligadb.de/) | Calendrier et resultats Bundesliga | Donnees ouvertes allemandes |
 | [TheSportsDB](https://www.thesportsdb.com/) | Calendrier Ligue des Champions (partiel) | Cle publique `123` fortement limitee |
 
@@ -87,7 +88,7 @@ Importer les CSV gratuits dans le cache local :
 
 ```bash
 python scripts/import_football_data.py
-python scripts/import_football_data.py --seasons 2026,2025 --leagues 140,78,135,61
+python scripts/import_football_data.py --seasons 2026,2025 --leagues 140,39,78,135,61
 ```
 
 Precharger les donnees sans ouvrir l'interface :

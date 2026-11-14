@@ -3,7 +3,8 @@
 Sources utilisees pour les saisons 2025 et 2026 :
 
 - football-data.co.uk (CSV) : resultats, cotes 1X2 et Over/Under 2.5.
-- OpenFootball (JSON GitHub) : calendriers La Liga, Bundesliga, Serie A, Ligue 1.
+- OpenFootball (JSON GitHub) : calendriers La Liga, Premier League,
+  Bundesliga, Serie A, Ligue 1.
 - OpenLigaDB (API publique) : calendrier et resultats Bundesliga.
 - TheSportsDB (cle publique de demonstration ``123``) : calendrier
   partiel de la Ligue des Champions.
@@ -40,6 +41,7 @@ TSDB_BASE = "https://www.thesportsdb.com/api/v1/json"
 
 CSV_LEAGUES = {
     140: {"code": "SP1", "name": "La Liga", "country": "Spain"},
+    39: {"code": "E0", "name": "Premier League", "country": "England"},
     78: {"code": "D1", "name": "Bundesliga", "country": "Germany"},
     135: {"code": "I1", "name": "Serie A", "country": "Italy"},
     61: {"code": "F1", "name": "Ligue 1", "country": "France"},
@@ -47,6 +49,7 @@ CSV_LEAGUES = {
 
 OPENFOOTBALL_FILES = {
     140: {"file": "es.1.json", "name": "La Liga", "country": "Spain"},
+    39: {"file": "en.1.json", "name": "Premier League", "country": "England"},
     78: {"file": "de.1.json", "name": "Bundesliga", "country": "Germany"},
     135: {"file": "it.1.json", "name": "Serie A", "country": "Italy"},
     61: {"file": "fr.1.json", "name": "Ligue 1", "country": "France"},
@@ -62,6 +65,7 @@ TSDB_LEAGUES = {
 
 FREE_LEAGUES = {
     140: {"id": 140, "name": "La Liga", "country": "Spain"},
+    39: {"id": 39, "name": "Premier League", "country": "England"},
     78: {"id": 78, "name": "Bundesliga", "country": "Germany"},
     135: {"id": 135, "name": "Serie A", "country": "Italy"},
     61: {"id": 61, "name": "Ligue 1", "country": "France"},
@@ -250,6 +254,34 @@ TEAM_ALIASES = {
     "rc strasbourg alsace": "strasbourg",
     "stade brestois 29": "brest",
     "stade rennais fc 1901": "rennes",
+    # Angleterre / Premier League
+    "afc bournemouth": "bournemouth",
+    "bournemouth": "bournemouth",
+    "brighton": "brighton",
+    "brighton and hove albion": "brighton",
+    "coventry": "coventry",
+    "coventry city": "coventry",
+    "hull": "hull",
+    "hull city": "hull",
+    "hull city afc": "hull",
+    "ipswich": "ipswich",
+    "ipswich town": "ipswich",
+    "leeds": "leeds",
+    "leeds united": "leeds",
+    "man united": "manchester united",
+    "newcastle": "newcastle",
+    "newcastle united": "newcastle",
+    "nott m forest": "nottingham forest",
+    "nottingham forest": "nottingham forest",
+    "sunderland": "sunderland",
+    "sunderland afc": "sunderland",
+    "tottenham": "tottenham",
+    "tottenham hotspur": "tottenham",
+    "west ham": "west ham",
+    "west ham united": "west ham",
+    "wolves": "wolverhampton",
+    "wolverhampton": "wolverhampton",
+    "wolverhampton wanderers": "wolverhampton",
 }
 
 _PREFIX_TOKENS = {
@@ -342,9 +374,10 @@ def season_start_year(day: date) -> int:
 def free_source_supports(league_id: int, season: int) -> bool:
     """Indique si les sources gratuites couvrent cette ligue et cette saison.
 
-    La Liga, la Bundesliga, la Serie A et la Ligue 1 sont couvertes par les
-    CSV et/ou les calendriers OpenFootball. La Ligue des Champions ne dispose
-    que d'un calendrier partiel TheSportsDB pour la saison en cours.
+    La Liga, la Premier League, la Bundesliga, la Serie A et la Ligue 1 sont
+    couvertes par les CSV et/ou les calendriers OpenFootball. La Ligue des
+    Champions ne dispose que d'un calendrier partiel TheSportsDB pour la
+    saison en cours.
     """
     league_id = int(league_id)
     if (
@@ -1398,8 +1431,9 @@ class FreeSources:
         if not free_source_supports(league_id, season):
             raise SourceError(
                 f"Les sources gratuites ne couvrent pas la ligue {league_id} "
-                f"pour la saison {season}. Ligues couvertes : La Liga, Bundesliga, "
-                "Serie A, Ligue 1 et Ligue des Champions (saison en cours).",
+                f"pour la saison {season}. Ligues couvertes : La Liga, "
+                "Premier League, Bundesliga, Serie A, Ligue 1 et Ligue des "
+                "Champions (saison en cours).",
                 "source",
             )
         groups: list[list[dict]] = []

@@ -5,7 +5,7 @@ Aucune cle API n'est necessaire.
 Usage :
     python scripts/import_football_data.py
     python scripts/import_football_data.py --seasons 2026,2025
-    python scripts/import_football_data.py --seasons 2026,2025 --leagues 140,78,135,61
+    python scripts/import_football_data.py --seasons 2026,2025 --leagues 140,39,78,135,61
 """
 
 from __future__ import annotations

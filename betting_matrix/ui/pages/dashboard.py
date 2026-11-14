@@ -208,7 +208,8 @@ class DashboardPage(BasePage):
         if not self.service.tracked_leagues():
             self._show_matches_message(
                 "Aucune ligue suivie",
-                "Ajoutez La Liga, Bundesliga, Serie A, Ligue 1 ou la Ligue des Champions.",
+                "Ajoutez La Liga, Premier League, Bundesliga, Serie A, Ligue 1 "
+                "ou la Ligue des Champions.",
             )
             self.matches_badge.setText("0 LIGUE")
             self.matches_badge.set_kind("amber")

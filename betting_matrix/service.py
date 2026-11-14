@@ -42,6 +42,40 @@ STATUS_LABELS = {
 FINAL_STATUSES = {"FT", "AET", "PEN"}
 
 
+def _merge_free_leagues(
+    current: list[dict],
+    extra_ids: tuple[int, ...] = (),
+    force_default_ids: tuple[int, ...] = (),
+) -> list[dict]:
+    """Nettoie la liste suivie et ajoute les ligues gratuites demandees."""
+    ordered: list[dict] = []
+    seen: set[int] = set()
+    force_default = set(force_default_ids)
+    for league in current:
+        if not isinstance(league, dict):
+            continue
+        try:
+            league_id = int(league.get("id"))
+        except (TypeError, ValueError):
+            continue
+        if league_id not in FREE_LEAGUES or league_id in seen:
+            continue
+        info = dict(FREE_LEAGUES[league_id])
+        info["default"] = (
+            True if league_id in force_default else bool(league.get("default", True))
+        )
+        ordered.append(info)
+        seen.add(league_id)
+    for league_id in extra_ids:
+        if league_id in seen or league_id not in FREE_LEAGUES:
+            continue
+        info = dict(FREE_LEAGUES[league_id])
+        info["default"] = True
+        ordered.append(info)
+        seen.add(league_id)
+    return ordered
+
+
 def normalize_fixture(raw: dict) -> dict:
     fixture = raw.get("fixture") or {}
     league = raw.get("league") or {}
@@ -155,38 +189,17 @@ class DataService:
                 settings["default_season"] = self.config.default_season
             settings["sources_migrated"] = True
             changed = True
-        # Migration unique : ajout de la Serie A et de la Ligue 1, retrait des
-        # ligues qui ne sont pas couvertes par les sources gratuites.
+        # Migration unique : ajout des ligues gratuites par defaut (dont la
+        # Serie A, la Ligue 1 et la Premier League), retrait des ligues qui ne
+        # sont pas couvertes par les sources gratuites.
         if not settings.get("free_leagues_migrated"):
-            current = settings.get("tracked_leagues") or []
-            by_id: dict[int, dict] = {}
-            for league in current:
-                try:
-                    league_id = int(league.get("id"))
-                except (TypeError, ValueError):
-                    continue
-                if league_id not in FREE_LEAGUES or league_id in by_id:
-                    continue
-                info = dict(FREE_LEAGUES[league_id])
-                info["default"] = bool(league.get("default", True))
-                by_id[league_id] = info
-            ordered: list[dict] = []
-            for league in current:
-                try:
-                    league_id = int(league.get("id"))
-                except (TypeError, ValueError):
-                    continue
-                if league_id in by_id:
-                    ordered.append(by_id.pop(league_id))
+            ordered = _merge_free_leagues(settings.get("tracked_leagues") or [])
             seen = {int(league["id"]) for league in ordered}
             for league in DEFAULT_LEAGUES:
                 league_id = int(league["id"])
                 if league_id not in seen:
                     ordered.append(dict(league))
                     seen.add(league_id)
-            ordered.extend(
-                by_id[key] for key in sorted(by_id) if key not in seen
-            )
             settings["tracked_leagues"] = ordered
             settings["free_leagues_migrated"] = True
             changed = True
@@ -194,28 +207,23 @@ class DataService:
         # Correctif pour les installations deja migrees avant l'arrivee de la
         # Serie A et de la Ligue 1 dans la liste par defaut.
         if not settings.get("serie_a_ligue1_migrated"):
-            current = settings.get("tracked_leagues") or []
-            ordered = []
-            seen = set()
-            for league in current:
-                try:
-                    league_id = int(league.get("id"))
-                except (TypeError, ValueError):
-                    continue
-                if league_id not in FREE_LEAGUES or league_id in seen:
-                    continue
-                info = dict(FREE_LEAGUES[league_id])
-                info["default"] = bool(league.get("default", True))
-                ordered.append(info)
-                seen.add(league_id)
-            for league_id in (135, 61):
-                if league_id not in seen:
-                    info = dict(FREE_LEAGUES[league_id])
-                    info["default"] = True
-                    ordered.append(info)
-                    seen.add(league_id)
-            settings["tracked_leagues"] = ordered
+            settings["tracked_leagues"] = _merge_free_leagues(
+                settings.get("tracked_leagues") or [],
+                (135, 61),
+                (135, 61),
+            )
             settings["serie_a_ligue1_migrated"] = True
+            changed = True
+
+        # Correctif pour les installations deja migrees avant l'arrivee de la
+        # Premier League dans la liste par defaut.
+        if not settings.get("premier_league_migrated"):
+            settings["tracked_leagues"] = _merge_free_leagues(
+                settings.get("tracked_leagues") or [],
+                (39,),
+                (39,),
+            )
+            settings["premier_league_migrated"] = True
             changed = True
         if changed:
             self.db.save_settings(settings)
@@ -245,8 +253,9 @@ class DataService:
         if not info:
             raise SourceError(
                 "Cette ligue n'est pas couverte par les sources gratuites. "
-                "Ligues disponibles : La Liga (140), Bundesliga (78), "
-                "Serie A (135), Ligue 1 (61), Ligue des Champions (2).",
+                "Ligues disponibles : La Liga (140), Premier League (39), "
+                "Bundesliga (78), Serie A (135), Ligue 1 (61), Ligue des "
+                "Champions (2).",
                 "source",
             )
         settings = self.settings()
@@ -437,8 +446,9 @@ class DataService:
         if not info:
             raise SourceError(
                 "Les sources gratuites couvrent uniquement La Liga (140), "
-                "Bundesliga (78), Serie A (135), Ligue 1 (61) et la Ligue "
-                "des Champions (2, calendrier partiel).",
+                "Premier League (39), Bundesliga (78), Serie A (135), "
+                "Ligue 1 (61) et la Ligue des Champions (2, calendrier "
+                "partiel).",
                 "source",
             )
         return {

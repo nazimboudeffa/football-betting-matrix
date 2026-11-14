@@ -34,9 +34,10 @@ class LeaguesPage(BasePage):
         self._adding = False
 
         self.banner = Banner(
-            "Sources gratuites : La Liga (140), Bundesliga (78), Serie A (135), "
-            "Ligue 1 (61) et Ligue des Champions (2, calendrier partiel). "
-            "Aucune cle API personnelle n'est necessaire.",
+            "Sources gratuites : La Liga (140), Premier League (39), "
+            "Bundesliga (78), Serie A (135), Ligue 1 (61) et Ligue des "
+            "Champions (2, calendrier partiel). Aucune cle API personnelle "
+            "n'est necessaire.",
             "info",
         )
         self.root.addWidget(self.banner)
@@ -45,7 +46,7 @@ class LeaguesPage(BasePage):
             "Competitions suivies",
             "Les matchs, classements et analyses s'appuient sur cette liste",
         )
-        self.reset_button = QPushButton("Restaurer les 5 ligues par defaut")
+        self.reset_button = QPushButton("Restaurer les 6 ligues par defaut")
         self.reset_button.setObjectName("ghost")
         self.reset_button.clicked.connect(self._restore_defaults)
         tracked_card.add_header_widget(self.reset_button)
@@ -116,7 +117,7 @@ class LeaguesPage(BasePage):
         self._set_results_empty(
             "Recherchez une competition",
             "La recherche se limite aux competitions couvertes par les sources "
-            "gratuites (140, 78, 135, 61, 2).",
+            "gratuites (140, 39, 78, 135, 61, 2).",
         )
 
     # ------------------------------------------------------------------ data
@@ -179,8 +180,8 @@ class LeaguesPage(BasePage):
     def _restore_defaults(self) -> None:
         if not self.confirm(
             "Restaurer les ligues par defaut",
-            "Remplacer la liste actuelle par La Liga, Bundesliga, Serie A, "
-            "Ligue 1 et Ligue des Champions ?",
+            "Remplacer la liste actuelle par La Liga, Premier League, "
+            "Bundesliga, Serie A, Ligue 1 et Ligue des Champions ?",
         ):
             return
         settings = self.service.settings()
