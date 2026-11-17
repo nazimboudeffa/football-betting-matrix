@@ -66,6 +66,20 @@ def _odd_text(value: object) -> str:
     return f"{float(value):.2f}"
 
 
+def latest_played_fixture(items: list[dict]) -> dict | None:
+    """Renvoie le match termine le plus recent d'une liste deja triee."""
+    return next(
+        (
+            fixture
+            for fixture in items
+            if (fixture.get("status") or {}).get("finished")
+            and (fixture.get("goals") or {}).get("home") is not None
+            and (fixture.get("goals") or {}).get("away") is not None
+        ),
+        None,
+    )
+
+
 class AnalysisPage(BasePage):
 
     def __init__(self, service: DataService, parent=None):
@@ -205,9 +219,9 @@ class AnalysisPage(BasePage):
         self.home_name = QLabel("—")
         self.home_name.setStyleSheet(f"color: {TEXT}; font-size: 14pt; font-weight: 700;")
         teams_row.addWidget(self.home_name)
-        vs = QLabel("vs")
-        vs.setStyleSheet(f"color: {MUTED}; font-weight: 600;")
-        teams_row.addWidget(vs)
+        self.vs_label = QLabel("vs")
+        self.vs_label.setStyleSheet(f"color: {MUTED}; font-weight: 600;")
+        teams_row.addWidget(self.vs_label)
         self.away_name = QLabel("—")
         self.away_name.setStyleSheet(f"color: {TEXT}; font-size: 14pt; font-weight: 700;")
         teams_row.addWidget(self.away_name)
@@ -1140,19 +1154,31 @@ class AnalysisPage(BasePage):
             )
             return
         ordered = sorted(items, key=lambda item: item.get("date") or "", reverse=True)
-        for fixture in ordered:
+        latest_played = latest_played_fixture(ordered)
+        selected_index = 0
+        for index, fixture in enumerate(ordered):
+            goals = fixture.get("goals") or {}
+            score = ""
+            if (fixture.get("status") or {}).get("finished") and goals.get("home") is not None:
+                score = f"  [{goals.get('home')}-{goals.get('away')}]"
             label = (
                 f"{self.service.format_kickoff(fixture.get('date'))}  •  "
-                f"{fixture['home']['name']} - {fixture['away']['name']}"
+                f"{fixture['home']['name']} - {fixture['away']['name']}{score}"
             )
             self.fixture_combo.addItem(label, fixture)
+            if fixture is latest_played:
+                selected_index = index
         self.fixture_combo.blockSignals(False)
         if result.get("warning"):
             self.analysis_banner.set_message(result["warning"], "warning")
+        elif latest_played:
+            self.analysis_banner.set_message(
+                "Dernier match joue selectionne automatiquement.", "info"
+            )
         else:
             self.analysis_banner.set_message("")
-        self.fixture_combo.setCurrentIndex(0)
-        self._on_fixture_combo_changed(0)
+        self.fixture_combo.setCurrentIndex(selected_index)
+        self._on_fixture_combo_changed(selected_index)
 
     def _on_fixture_list_error(self, code: str, message: str) -> None:
         self._fixture_list_loading = False
@@ -1297,6 +1323,17 @@ class AnalysisPage(BasePage):
         )
         self.home_name.setText(fixture["home"].get("name") or "—")
         self.away_name.setText(fixture["away"].get("name") or "—")
+        goals = fixture.get("goals") or {}
+        home_goals = goals.get("home")
+        away_goals = goals.get("away")
+        if home_goals is not None and away_goals is not None:
+            self.vs_label.setText(f"{home_goals} - {away_goals}")
+            self.vs_label.setStyleSheet(
+                f"color: {ACCENT}; font-size: 15pt; font-weight: 700;"
+            )
+        else:
+            self.vs_label.setText("vs")
+            self.vs_label.setStyleSheet(f"color: {MUTED}; font-weight: 600;")
         self.home_logo.setVisible(False)
         self.away_logo.setVisible(False)
         # Les logos sont recharges en recreant des labels pour eviter les restes.

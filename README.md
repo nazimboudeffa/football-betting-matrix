@@ -20,6 +20,8 @@ l'application.
 - Tableau de bord : matchs a venir, ligues suivies, sources et cache session.
 - Matchs du jour, navigation par date et archive des saisons.
 - Analyse d'un match : choix d'une strategie et affichage de ses cotes calculees.
+  Changer de ligue ou de saison selectionne automatiquement le **dernier match
+  joue** et affiche son score dans l'en-tete.
 - Donnees du match : xG, tirs, tirs cadres, corners, cartons, score mi-temps,
   cotes d'ouverture/cloture, probabilites de marche sans marge, handicap
   asiatique et statistiques de l'arbitre.
