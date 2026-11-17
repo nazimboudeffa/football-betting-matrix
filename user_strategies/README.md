@@ -1,9 +1,8 @@
-#Strategies de calcul des cotes utilisateur
+# Modeles et strategies utilisateur
 
 Ce dossier est **hors du coeur du logiciel** : le package `football_betting_matrix`
-ne contient que le chargeur et les cotes justes de base. Ajoutez ici vos propres
-fichiers `.py` pour changer la facon dont les cotes sont calculees dans la page
-**Analyse → Cotes calculees**.
+ne contient aucun calcul de probabilites. Il charge simplement les strategies
+placees ici et leur demande le modele et les cotes affiches dans la page **Analyse**.
 
 Les strategies sont detectees au demarrage, ou apres un clic sur **Recharger**
 dans la page Analyse. Aucun redemarrage n'est necessaire.
@@ -19,9 +18,17 @@ DESCRIPTION = "Ce que fait la strategie" # texte d'aide sous la liste
 def evaluate(probabilities, context=None):
     """Renvoie une liste de cotes (une par marche)."""
     ...
+
+def analyze(fixtures, home_id, away_id, home_name, away_name, before_date=None):
+    """Optionnel : renvoie les probabilites du match."""
+    ...
 ```
 
-Arguments :
+- `evaluate()` est obligatoire : elle transforme les probabilites en cotes.
+- `analyze()` est optionnelle : si elle est absente, le coeur utilise le premier
+  modele trouve dans le dossier. Les strategies fournies l'implementent toutes.
+
+Arguments de `evaluate()` :
 
 - `probabilities` : `{"home": 0.51, "draw": 0.26, ...}` (probabilites du modele).
 - `context` : dictionnaire reserve aux futures options (non utilise pour l'instant).
@@ -47,12 +54,23 @@ def evaluate(probabilities, context=None):
     return rows
 ```
 
+## Un fichier = une strategie autonome
+
+Chaque fichier contient son propre modele (`analyze`) et sa propre conversion en
+cotes (`evaluate`). `poisson.py` et `strict_value.py` sont independants : aucun
+fichier de strategie n'importe un autre fichier de strategie.
+
+Le coeur ne connait aucun nom de modele : il appelle simplement `analyze()` de la
+strategie active. Pour proposer un autre modele, creez un nouveau fichier avec son
+propre `analyze()` et son `evaluate()`.
+
 Un module invalide (erreur de syntaxe, `NAME` ou `evaluate()` manquant) est ignore :
 il n'empeche pas le demarrage de l'application. Le nombre d'erreurs est indique sous
 la liste des strategies.
 
 ## Exemples fournis
 
-- `classic_edge.py` : cote juste `1 / probabilite`, sans marge (strategie par defaut).
-- `strict_value.py` : marches a au moins 45 % de probabilite, cote juste + 5 % de
-  marge, triees par cote decroissante.
+- `poisson.py` : modele de Poisson, probabilites brutes converties en cotes
+  `1 / probabilite`, sans marge (strategie par defaut).
+- `strict_value.py` : fichier autonome avec son propre modele de Poisson ; ne garde
+  que les marches a au moins 45 % de probabilite, avec cote juste + 5 % de marge.

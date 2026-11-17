@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import Any, Callable
 
-from .analysis import analyze_match
 from .config import DEFAULT_OLLAMA_URL, DEFAULT_SETTINGS, Config
 from .errors import SourceError
 from .sources import (
@@ -421,7 +420,14 @@ class DataService:
             date_value = (fixture.get("date") or "")[:10]
             if date_value:
                 before_date = date_value
-        model = analyze_match(
+        selected = self.strategies.get(self.value_strategy_id())
+        analyzer = selected if selected and selected.analyze else self.strategies.probability_model()
+        if analyzer is None or analyzer.analyze is None:
+            raise SourceError(
+                "Aucune strategie ne fournit de modele de probabilites dans user_strategies/.",
+                "config",
+            )
+        model = analyzer.analyze(
             fixtures,
             fixture.get("home", {}).get("id"),
             fixture.get("away", {}).get("id"),
@@ -436,6 +442,7 @@ class DataService:
             k: season_data.get(k)
             for k in ("cached", "stale", "warning", "fetched_at", "source", "sources")
         }
+        model["_meta"]["model_strategy"] = model.get("model_name") or analyzer.name
         return model
 
     # -------------------------------------------------------------- warmup

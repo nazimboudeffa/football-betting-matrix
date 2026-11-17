@@ -393,7 +393,7 @@ class SettingsPage(BasePage):
                 f"Prechargement termine : {len(result.get('steps') or [])} etape(s) traitee(s)."
             )
             self.cache_banner.set_message(
-                "Prechargement termine. Les pages Matchs, Analyse et Classements sont pretes.",
+                "Prechargement termine. Les pages Matchs et Analyse sont pretes.",
                 "success",
             )
         self.refresh_cache()

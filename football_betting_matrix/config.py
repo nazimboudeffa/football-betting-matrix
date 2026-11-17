@@ -119,7 +119,7 @@ DEFAULT_LEAGUES: list[dict] = [
     },
 ]
 
-DEFAULT_ODDS_STRATEGY = "classic_edge"
+DEFAULT_ODDS_STRATEGY = "poisson"
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
 
 DEFAULT_SETTINGS: dict = {

@@ -45,8 +45,8 @@ class ContextTests(unittest.TestCase):
             "selected_strategy": "strict_value",
             "strategies": [
                 {
-                    "id": "classic_edge",
-                    "name": "Cote juste",
+                    "id": "poisson",
+                    "name": "Poisson",
                     "description": "Sans marge",
                     "rows": [{"label": "Victoire domicile", "prob": 0.5, "odd": 2.0}],
                 },

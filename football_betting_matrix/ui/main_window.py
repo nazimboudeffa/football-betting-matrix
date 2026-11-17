@@ -27,7 +27,6 @@ from .pages.dashboard import DashboardPage
 from .pages.leagues import LeaguesPage
 from .pages.matches import MatchesPage
 from .pages.settings import SettingsPage
-from .pages.standings import StandingsPage
 
 WEEKDAYS = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
 MONTHS = [
@@ -48,8 +47,7 @@ MONTHS = [
 PAGES = [
     ("dashboard", "Tableau de bord", "Vue d'ensemble des matchs, des sources et du cache"),
     ("matches", "Matchs", "Matchs, navigation par date et archive des saisons"),
-    ("analysis", "Analyse", "Probabilites du modele et cotes calculees"),
-    ("standings", "Classements", "Classements des competitions suivies"),
+    ("analysis", "Analyse", "Classement et cotes calculees par strategie"),
     ("leagues", "Ligues", "Gerez les competitions suivies"),
     ("settings", "Reglages", "Configuration, sources gratuites et cache"),
 ]
@@ -219,14 +217,12 @@ class MainWindow(QMainWindow):
         self.dashboard = DashboardPage(self.service)
         self.matches = MatchesPage(self.service)
         self.analysis = AnalysisPage(self.service)
-        self.standings = StandingsPage(self.service)
         self.leagues = LeaguesPage(self.service)
         self.settings = SettingsPage(self.service)
         self.pages = {
             "dashboard": self.dashboard,
             "matches": self.matches,
             "analysis": self.analysis,
-            "standings": self.standings,
             "leagues": self.leagues,
             "settings": self.settings,
         }
@@ -302,7 +298,6 @@ class MainWindow(QMainWindow):
 
     def _on_leagues_changed(self) -> None:
         self.matches.refresh_leagues()
-        self.standings.refresh_leagues()
         self.analysis.refresh_league_combos()
         self.dashboard.refresh_after_leagues()
 
@@ -312,7 +307,6 @@ class MainWindow(QMainWindow):
 
     def _on_data_warmed(self) -> None:
         self.matches.refresh_after_warmup()
-        self.standings.refresh_after_warmup()
         self.analysis.refresh_after_warmup()
         self.dashboard.refresh_after_leagues()
 

@@ -1,4 +1,4 @@
-"""Page Analyse : modele Poisson, cotes calculees et strategies utilisateur."""
+"""Page Analyse : strategies utilisateur et cotes calculees."""
 
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ from ...theme import (
     BLUE,
     MUTED,
     PURPLE,
+    RED,
     TEXT,
     TEXT_SOFT,
 )
@@ -36,10 +37,10 @@ from ..widgets import (
     Badge,
     Banner,
     Card,
+    EmptyState,
     FormBadges,
-    InfoRow,
     LogoLabel,
-    ProbabilityBar,
+    TeamBadge,
     make_mono_label,
     table_item,
 )
@@ -60,6 +61,10 @@ class AnalysisPage(BasePage):
         self._analysis_loading = False
         self._fixture_list_loading = False
         self._current_odds: list[dict] = []
+        self._standings_loading = False
+        self._standings_loaded = False
+        self._standings_key: tuple[int, int] | None = None
+        self._standings_groups: list[dict] = []
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -83,9 +88,7 @@ class AnalysisPage(BasePage):
         left.setSpacing(14)
         right = QVBoxLayout()
         right.setSpacing(14)
-        left.addWidget(self._build_model_card())
-        left.addWidget(self._build_markets_card())
-        left.addWidget(self._build_scores_card())
+        left.addWidget(self._build_standings_card())
         right.addWidget(self._build_odds_card())
         right.addWidget(self._build_team_card())
         columns.addLayout(left, 3)
@@ -116,7 +119,9 @@ class AnalysisPage(BasePage):
         row.addWidget(QLabel("Ligue"))
         self.league_combo = QComboBox()
         self.league_combo.setMinimumWidth(160)
-        self.league_combo.currentIndexChanged.connect(lambda _i: self._load_fixture_list())
+        self.league_combo.currentIndexChanged.connect(
+            lambda _i: self._on_general_selection_changed()
+        )
         row.addWidget(self.league_combo)
 
         row.addWidget(QLabel("Saison"))
@@ -126,7 +131,9 @@ class AnalysisPage(BasePage):
             self.service.config.seasons,
             self.service.settings().get("default_season"),
         )
-        self.season_combo.currentIndexChanged.connect(lambda _i: self._load_fixture_list())
+        self.season_combo.currentIndexChanged.connect(
+            lambda _i: self._on_general_selection_changed()
+        )
         row.addWidget(self.season_combo)
 
         row.addWidget(QLabel("Match"))
@@ -201,56 +208,277 @@ class AnalysisPage(BasePage):
         card.add_layout(layout)
         return card
 
-    def _build_model_card(self) -> Card:
-        card = Card("Modele Poisson", "Probabilites estimees a partir des resultats de la saison")
-        self.reliability_badge = Badge("—", "gray")
-        card.add_header_widget(self.reliability_badge)
-        self.model_banner = Banner()
-        card.add(self.model_banner)
+    # -------------------------------------------------------------- classement
 
-        self.prob_home = ProbabilityBar("Victoire domicile", 0.0, BLUE)
-        self.prob_draw = ProbabilityBar("Match nul", 0.0, AMBER)
-        self.prob_away = ProbabilityBar("Victoire exterieur", 0.0, PURPLE)
-        card.add(self.prob_home)
-        card.add(self.prob_draw)
-        card.add(self.prob_away)
+    def _build_standings_card(self) -> Card:
+        card = Card("Classement", "Ligue et saison selectionnees en haut de page")
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(6)
+        self.standings_group_label = QLabel("Groupe")
+        toolbar.addWidget(self.standings_group_label)
+        self.standings_group_combo = QComboBox()
+        self.standings_group_combo.setMinimumWidth(120)
+        self.standings_group_combo.currentIndexChanged.connect(
+            lambda _i: self._render_standings()
+        )
+        toolbar.addWidget(self.standings_group_combo)
+        self.standings_group_label.setVisible(False)
+        self.standings_group_combo.setVisible(False)
 
-        xg_row = QHBoxLayout()
-        xg_row.setSpacing(14)
-        xg_row.addWidget(InfoRow("xG domicile", "—", mono=True), 1)
-        xg_row.addWidget(InfoRow("xG exterieur", "—", mono=True), 1)
-        xg_row.addWidget(InfoRow("Total attendu", "—", mono=True), 1)
-        card.add_layout(xg_row)
-        self.xg_home = xg_row.itemAt(0).widget()
-        self.xg_away = xg_row.itemAt(1).widget()
-        self.xg_total = xg_row.itemAt(2).widget()
+        toolbar.addStretch()
+        refresh = QPushButton("Actualiser")
+        refresh.clicked.connect(self._refresh_standings)
+        toolbar.addWidget(refresh)
+        card.add_layout(toolbar)
 
-        self.sample_label = QLabel("En attente d'un match.")
-        self.sample_label.setObjectName("small")
-        self.sample_label.setWordWrap(True)
-        card.add(self.sample_label)
+        self.standings_status = QLabel("—")
+        self.standings_status.setObjectName("small")
+        card.add(self.standings_status)
+
+        self.standings_banner = Banner()
+        card.add(self.standings_banner)
+
+        self.standings_stack = QStackedWidget()
+        self.standings_table = QTableWidget()
+        configure_table(
+            self.standings_table,
+            [
+                "#",
+                "Equipe",
+                "Groupe",
+                "MJ",
+                "V",
+                "N",
+                "D",
+                "BP",
+                "BC",
+                "Diff",
+                "Pts",
+                "Forme",
+                "Statut",
+            ],
+            stretch_columns=[1],
+            row_height=38,
+        )
+        self.standings_table.setMinimumHeight(320)
+        self.standings_stack.addWidget(self.standings_table)
+
+        self.standings_empty_holder = QWidget()
+        self.standings_empty_layout = QVBoxLayout(self.standings_empty_holder)
+        self.standings_empty_layout.setContentsMargins(0, 0, 0, 0)
+        self.standings_stack.addWidget(self.standings_empty_holder)
+
+        card.add(self.standings_stack, 1)
         return card
 
-    def _build_markets_card(self) -> Card:
-        card = Card("Marches complementaires")
-        self.prob_over = ProbabilityBar("Plus de 2.5 buts", 0.0, ACCENT)
-        self.prob_under = ProbabilityBar("Moins de 2.5 buts", 0.0, MUTED)
-        self.prob_btts = ProbabilityBar("BTTS : oui", 0.0, BLUE)
-        self.prob_no_btts = ProbabilityBar("BTTS : non", 0.0, MUTED)
-        card.add(self.prob_over)
-        card.add(self.prob_under)
-        card.add(self.prob_btts)
-        card.add(self.prob_no_btts)
-        return card
+    def _standings_target_key(self) -> tuple[int, int] | None:
+        """Ligue et saison courantes du choix general (en haut de page)."""
+        league_id = self.league_combo.currentData()
+        season = self.season_combo.currentData()
+        if league_id is None or season is None:
+            return None
+        return (int(league_id), int(season))
 
-    def _build_scores_card(self) -> Card:
-        card = Card("Scores exacts les plus probables")
-        self.scores_table = QTableWidget()
-        configure_table(self.scores_table, ["Score", "Probabilite"], stretch_columns=[1], row_height=30)
-        self.scores_table.setMinimumHeight(220)
-        self.scores_table.setMaximumHeight(250)
-        card.add(self.scores_table)
-        return card
+    def _standings_selection_changed(self) -> None:
+        self._standings_loaded = False
+        self._standings_key = None
+        if self.isVisible():
+            self._load_standings()
+
+    def _refresh_standings(self) -> None:
+        self._standings_key = None
+        self._load_standings()
+
+    def _load_standings(self) -> None:
+        if self._standings_loading:
+            return
+        key = self._standings_target_key()
+        if key is None:
+            self.standings_status.setText("Aucune ligue")
+            self._show_standings_empty(
+                "Aucune ligue selectionnee",
+                "Choisissez une ligue et une saison en haut de page.",
+            )
+            return
+        if key == self._standings_key and self._standings_loaded:
+            return
+        self._standings_loading = True
+        self.standings_status.setText("Chargement...")
+        self.standings_banner.set_message("")
+        self._show_standings_empty(
+            "Chargement du classement...",
+            "La premiere requete peut prendre quelques secondes.",
+        )
+        league_id, season = key
+        self.run_task(
+            lambda _progress: self.service.standings(league_id, season),
+            lambda result: self._on_standings_loaded(result, key),
+            lambda code, message: self._on_standings_error(code, message, key),
+            busy_text=f"Chargement du classement {season}...",
+        )
+
+    def _on_standings_loaded(self, result: dict, key: tuple[int, int]) -> None:
+        self._standings_loading = False
+        if key != self._standings_target_key():
+            # Le choix general a change pendant le chargement : on recharge le bon classement.
+            self._load_standings()
+            return
+        self._standings_loaded = True
+        self._standings_key = key
+        self._standings_groups = result.get("groups") or []
+        moment = (
+            datetime.fromtimestamp(result["fetched_at"]).strftime("%H:%M")
+            if result.get("fetched_at")
+            else "—"
+        )
+        source = result.get("source") or ("cache" if result.get("cached") else "Sources gratuites")
+        total = sum(len(group.get("rows") or []) for group in self._standings_groups)
+        league_name = (result.get("league") or {}).get("name") or "Classement"
+        self.standings_status.setText(
+            f"{league_name} • {total} equipe(s) • {source} • maj {moment}"
+        )
+        self.standings_banner.set_message(result.get("warning") or "", "warning")
+        self._render_standings()
+
+    def _on_standings_error(
+        self, _code: str, message: str, key: tuple[int, int] | None = None
+    ) -> None:
+        self._standings_loading = False
+        if key is not None and key != self._standings_target_key():
+            self._load_standings()
+            return
+        self.standings_status.setText("Erreur")
+        self.standings_banner.set_message(message, "error")
+        self._show_standings_empty("Classement indisponible", message)
+
+    def _render_standings(self) -> None:
+        if not self._standings_groups:
+            self._show_standings_empty("Aucun classement", "La source n'a renvoye aucune ligne.")
+            return
+        group_filter = (
+            self.standings_group_combo.currentData()
+            if self.standings_group_combo.isVisible()
+            else None
+        )
+        rows: list[dict] = []
+        for group in self._standings_groups:
+            if group_filter and group.get("name") != group_filter:
+                continue
+            rows.extend(group.get("rows") or [])
+        if not rows:
+            self._show_standings_empty("Aucune equipe", "Essayez un autre groupe ou une autre saison.")
+            return
+
+        multiple = len(self._standings_groups) > 1
+        self.standings_group_label.setVisible(multiple)
+        self.standings_group_combo.setVisible(multiple)
+        self.standings_group_combo.blockSignals(True)
+        self.standings_group_combo.clear()
+        if multiple:
+            self.standings_group_combo.addItem("Tous les groupes", None)
+            for group in self._standings_groups:
+                self.standings_group_combo.addItem(group.get("name") or "Groupe", group.get("name"))
+        self.standings_group_combo.blockSignals(False)
+
+        self.standings_stack.setCurrentIndex(0)
+        self.standings_table.setRowCount(len(rows))
+        for row_index, row in enumerate(rows):
+            rank_item = table_item(str(row.get("rank") or "—"), bold=True)
+            rank_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.standings_table.setItem(row_index, 0, rank_item)
+
+            team = row.get("team") or {}
+            self.standings_table.setCellWidget(
+                row_index, 1, TeamBadge(team.get("name") or "—", team.get("logo") or "")
+            )
+            self.standings_table.setItem(
+                row_index, 2, table_item(row.get("group") or "—", color=MUTED)
+            )
+
+            stats = row.get("all") or {}
+            goals = stats.get("goals") or {}
+            values = (
+                stats.get("played"),
+                stats.get("win"),
+                stats.get("draw"),
+                stats.get("lose"),
+                goals.get("for", "—"),
+                goals.get("against", "—"),
+            )
+            for column, value in enumerate(values, start=3):
+                self.standings_table.setItem(
+                    row_index, column, table_item(value if value is not None else "—", align_right=True)
+                )
+
+            diff = row.get("goals_diff")
+            diff_color = (
+                ACCENT if isinstance(diff, int) and diff > 0 else RED if isinstance(diff, int) and diff < 0 else MUTED
+            )
+            self.standings_table.setItem(
+                row_index,
+                9,
+                table_item(
+                    f"{diff:+d}" if isinstance(diff, int) else "—",
+                    align_right=True,
+                    color=diff_color,
+                ),
+            )
+            self.standings_table.setItem(
+                row_index,
+                10,
+                table_item(
+                    row.get("points") if row.get("points") is not None else "—",
+                    align_right=True,
+                    bold=True,
+                ),
+            )
+
+            form_cell = QWidget()
+            form_layout = QHBoxLayout(form_cell)
+            form_layout.setContentsMargins(4, 0, 4, 0)
+            form_layout.addWidget(FormBadges(row.get("form") or ""))
+            form_layout.addStretch()
+            self.standings_table.setCellWidget(row_index, 11, form_cell)
+            self.standings_table.setItem(
+                row_index, 12, self._standings_status_item(row.get("description") or "")
+            )
+
+        self.standings_table.setColumnHidden(2, not multiple)
+
+    @staticmethod
+    def _standings_status_item(description: str) -> QTableWidgetItem:
+        if not description:
+            return table_item("—", color=MUTED)
+        lowered = description.lower()
+        if "relegation" in lowered:
+            color = RED
+        elif "champions" in lowered or "promotion" in lowered:
+            color = ACCENT
+        elif "europa" in lowered:
+            color = BLUE
+        elif "conference" in lowered:
+            color = PURPLE
+        else:
+            color = AMBER
+        return table_item(description, color=color)
+
+    def _show_standings_empty(
+        self,
+        title: str,
+        text: str = "",
+        action_text: str | None = None,
+        callback=None,
+    ) -> None:
+        while self.standings_empty_layout.count():
+            item = self.standings_empty_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+        empty = EmptyState(title, text, action_text)
+        if empty.button and callback:
+            empty.button.clicked.connect(callback)
+        self.standings_empty_layout.addWidget(empty)
+        self.standings_stack.setCurrentIndex(1)
 
     def _build_odds_card(self) -> Card:
         card = Card("Cotes calculees", "Cotes estimees par le modele selon la strategie")
@@ -336,7 +564,11 @@ class AnalysisPage(BasePage):
             return
         self.service.set_value_strategy(strategy_id)
         self._update_strategy_info()
-        self._recompute_odds()
+        # La strategie peut fournir son propre modele de probabilites.
+        if self.fixture is not None:
+            self._run_analysis()
+        else:
+            self._recompute_odds()
 
     def _reload_strategies(self) -> None:
         self.service.reload_strategies()
@@ -463,15 +695,26 @@ class AnalysisPage(BasePage):
     def on_show(self) -> None:
         if not self.fixture and self.league_combo.count() > 0 and self.fixture_combo.count() == 0:
             self._load_fixture_list()
+        if not self._standings_loaded and not self._standings_loading:
+            self._load_standings()
+
+    def _on_general_selection_changed(self) -> None:
+        """Le choix general (ligue/saison) pilote les matchs et le classement."""
+        self._load_fixture_list()
+        self._standings_selection_changed()
 
     def refresh_league_combos(self) -> None:
         self._refresh_league_combos()
+        self._standings_selection_changed()
         if self.isVisible() and self.fixture is None and self.fixture_combo.count() == 0:
             self._load_fixture_list()
 
     def refresh_after_warmup(self) -> None:
         if self.fixture is not None and not self._analysis_loading:
             self._run_analysis()
+        self._standings_loaded = False
+        self._standings_key = None
+        self._refresh_standings()
 
     def _refresh_league_combos(self) -> None:
         leagues = self.service.tracked_leagues()
@@ -512,6 +755,7 @@ class AnalysisPage(BasePage):
 
         self._render_header()
         self._set_controls_enabled(True)
+        self._standings_selection_changed()
         self._run_analysis()
 
     # -------------------------------------------------------------- saison
@@ -602,7 +846,7 @@ class AnalysisPage(BasePage):
             lambda _progress: self.service.analyze_fixture(fixture, season, force=force),
             self._on_analysis_loaded,
             self._on_analysis_error,
-            busy_text="Calcul du modele Poisson...",
+            busy_text="Calcul du modele...",
         )
 
     def _on_analysis_loaded(self, model: dict) -> None:
@@ -610,7 +854,7 @@ class AnalysisPage(BasePage):
         self.model = model
         warning = (model.get("_meta") or {}).get("warning")
         self.analysis_banner.set_message(warning or "", "warning" if warning else "info")
-        self._render_model()
+        self._render_teams()
         self._recompute_odds()
 
     def _on_analysis_error(self, code: str, message: str) -> None:
@@ -618,59 +862,6 @@ class AnalysisPage(BasePage):
         self.analysis_banner.set_message(message, "error")
         self.model = None
         self._reset_odds()
-
-    def _render_model(self) -> None:
-        if not self.model:
-            return
-        probs = self.model["probabilities"]
-        self.prob_home.set_value(probs["home"])
-        self.prob_draw.set_value(probs["draw"])
-        self.prob_away.set_value(probs["away"])
-        self.prob_over.set_value(probs["over25"])
-        self.prob_under.set_value(probs["under25"])
-        self.prob_btts.set_value(probs["btts_yes"])
-        self.prob_no_btts.set_value(probs["btts_no"])
-
-        self.xg_home.set_value(f"{self.model['lambda_home']:.2f}")
-        self.xg_away.set_value(f"{self.model['lambda_away']:.2f}")
-        self.xg_total.set_value(f"{self.model['expected_total']:.2f}")
-        reliability = self.model.get("reliability", "faible")
-        kind = {"bonne": "green", "moyenne": "amber", "faible": "red"}.get(reliability, "gray")
-        self.reliability_badge.setText(reliability.upper())
-        self.reliability_badge.set_kind(kind)
-
-        sample = int(self.model.get("sample_matches") or 0)
-        season = self.model.get("season")
-        detail = f"Base : {sample} match(s) de la saison {season}"
-        if self.model.get("before_date"):
-            detail += f", avant le {self._format_date(self.model['before_date'])}"
-        detail += "."
-        if not self.model.get("known_home") or not self.model.get("known_away"):
-            missing = []
-            if not self.model.get("known_home"):
-                missing.append(self.model["fixture"]["home"]["name"])
-            if not self.model.get("known_away"):
-                missing.append(self.model["fixture"]["away"]["name"])
-            self.model_banner.set_message(
-                "Donnees insuffisantes pour : " + ", ".join(missing) + ". "
-                "Les moyennes de la ligue sont utilisees (fiabilite faible).",
-                "warning",
-            )
-        else:
-            self.model_banner.set_message("")
-        self.sample_label.setText(
-            detail
-            + " Les probabilites sont recalculees localement, sans appel supplementaire."
-        )
-
-        self.scores_table.setRowCount(0)
-        for row, score in enumerate(self.model.get("scores") or []):
-            self.scores_table.insertRow(row)
-            self.scores_table.setItem(row, 0, table_item(score["score"], bold=True))
-            prob_item = table_item(f"{score['prob'] * 100:.1f} %", align_right=True, color=ACCENT)
-            self.scores_table.setItem(row, 1, prob_item)
-
-        self._render_teams()
 
     def _render_teams(self) -> None:
         if not self.model:
@@ -798,12 +989,3 @@ class AnalysisPage(BasePage):
                 "Selectionnez un match dans la liste ou cliquez sur Analyser depuis la page Matchs.",
                 "info",
             )
-
-    # ----------------------------------------------------------------- utils
-
-    @staticmethod
-    def _format_date(value: str) -> str:
-        try:
-            return datetime.fromisoformat(value).strftime("%d/%m/%Y")
-        except (ValueError, TypeError):
-            return value

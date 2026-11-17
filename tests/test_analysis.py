@@ -6,12 +6,14 @@ import math
 import unittest
 
 from football_betting_matrix.analysis import (
-    analyze_match,
-    build_season_stats,
     implied_probability,
-    model_odds,
     odds_summary,
     parse_odds,
+)
+from football_betting_matrix.strategies import model_odds
+from user_strategies.poisson import (
+    analyze_match,
+    build_season_stats,
     poisson_matrix,
     probabilities_from_matrix,
 )

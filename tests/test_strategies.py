@@ -6,7 +6,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from football_betting_matrix.analysis import model_odds
 from football_betting_matrix.config import ROOT_DIR, Config
 from football_betting_matrix.service import DataService
 from football_betting_matrix.store import JsonSettingsStore, MemoryCache
@@ -14,6 +13,7 @@ from football_betting_matrix.strategies import (
     DEFAULT_STRATEGY_ID,
     Strategy,
     load_strategies,
+    model_odds,
 )
 
 PROBABILITIES = {
@@ -103,24 +103,24 @@ class BundledStrategyTests(unittest.TestCase):
     def setUp(self) -> None:
         catalog = load_strategies(ROOT_DIR / "user_strategies")
         self.catalog = catalog
-        self.classic = catalog.get("classic_edge")
+        self.poisson = catalog.get("poisson")
         self.strict = catalog.get("strict_value")
 
     def test_two_bundled_strategies_are_loaded_without_error(self) -> None:
         self.assertEqual(
             {strategy.id for strategy in self.catalog.strategies},
-            {"classic_edge", "strict_value"},
+            {"poisson", "strict_value"},
         )
         self.assertEqual(self.catalog.errors, ())
 
-    def test_classic_matches_the_core_model_odds(self) -> None:
-        self.assertIsNotNone(self.classic)
+    def test_poisson_matches_the_core_model_odds(self) -> None:
+        self.assertIsNotNone(self.poisson)
         expected = model_odds(PROBABILITIES)
-        actual = self.classic.run(PROBABILITIES)
+        actual = self.poisson.run(PROBABILITIES)
 
         self.assertEqual([row["label"] for row in actual], [row["label"] for row in expected])
         self.assertEqual([row["odd"] for row in actual], [row["odd"] for row in expected])
-        self.assertTrue(all(row["signal"] == "Reference" for row in actual))
+        self.assertTrue(all(row["signal"] == "Poisson" for row in actual))
         self.assertFalse(any(row["highlight"] for row in actual))
 
     def test_strict_filters_by_probability_adds_margin_and_sorts_by_odd(self) -> None:
@@ -132,6 +132,34 @@ class BundledStrategyTests(unittest.TestCase):
         self.assertEqual([round(row["fair_odd"], 2) for row in rows], [1.92, 1.72])
         self.assertTrue(all(row["signal"] == "Marge +5 %" for row in rows))
         self.assertTrue(all(row["highlight"] for row in rows))
+
+    def test_bundled_strategies_provide_the_probability_model(self) -> None:
+        self.assertIsNotNone(self.catalog.probability_model())
+        for strategy in self.catalog.strategies:
+            self.assertIsNotNone(strategy.analyze, strategy.id)
+
+
+class CoreSeparationTests(unittest.TestCase):
+    def test_poisson_model_lives_outside_the_core(self) -> None:
+        import football_betting_matrix.analysis as analysis
+
+        for name in (
+            "analyze_match",
+            "build_season_stats",
+            "poisson_matrix",
+            "probabilities_from_matrix",
+        ):
+            self.assertFalse(hasattr(analysis, name), name)
+
+    def test_strategy_files_are_self_contained(self) -> None:
+        folder = ROOT_DIR / "user_strategies"
+        for name in ("poisson.py", "strict_value.py"):
+            source = (folder / name).read_text(encoding="utf-8")
+            self.assertIn("def analyze_match(", source, name)
+            self.assertIn("def evaluate(", source, name)
+            for other in ("poisson", "strict_value"):
+                if other != name.removesuffix(".py"):
+                    self.assertNotIn(f"from {other} import", source, name)
 
 
 class ServiceStrategyTests(unittest.TestCase):
@@ -155,7 +183,7 @@ class ServiceStrategyTests(unittest.TestCase):
         service = self._service()
         self.assertEqual(
             {strategy.id for strategy in service.strategies.strategies},
-            {"classic_edge", "strict_value"},
+            {"poisson", "strict_value"},
         )
 
     def test_selection_is_saved_as_a_json_setting(self) -> None:

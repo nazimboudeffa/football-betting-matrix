@@ -13,12 +13,12 @@ reglages sont enregistres dans `data/settings.json`.
 
 - Tableau de bord : matchs a venir, ligues suivies, sources et cache session.
 - Matchs du jour, navigation par date et archive des saisons.
-- Analyse d'un match : probabilites 1X2, Over/Under 2.5, BTTS, scores exacts.
-- Cotes calculees : probabilites du modele converties en cotes selon la strategie
-  choisie dans `user_strategies/`.
+- Analyse d'un match : choix d'une strategie et affichage de ses cotes calculees.
+- Cotes calculees : chaque strategie de `user_strategies/` est un fichier autonome
+  qui fournit son modele de probabilites et leur conversion en cotes.
 - Analyse IA : envoi du prompt, des donnees et de toutes les strategies a une
   instance Ollama locale, avec choix du modele.
-- Classements calcules a partir des resultats disponibles.
+- Classement de la ligue affiche directement dans la page **Analyse**.
 - Cache en memoire des reponses des sources, sans SQLite ni fichier de cache.
 
 ## Installation
@@ -133,19 +133,24 @@ n'est disponible dans la liste deroulante.
 
 ## Strategies de calcul des cotes
 
-La page **Analyse → Cotes calculees** utilise une strategie selectionnable.
+La page **Analyse** utilise une strategie selectionnable. Le coeur de l'application
+ne contient aucun calcul de probabilites : il charge une strategie qui fournit
+`analyze(...)` (le modele) et `evaluate(...)` (les cotes).
+
 Deux strategies de base sont fournies dans `user_strategies/` :
 
-- `classic_edge.py` : cote juste `1 / probabilite`, sans marge (defaut).
-- `strict_value.py` : marches a au moins 45 % de probabilite, cote juste + 5 %
-  de marge, triees par cote decroissante.
+- `poisson.py` : modele de Poisson, probabilites brutes converties en cotes
+  `1 / probabilite`, sans marge (defaut).
+- `strict_value.py` : **fichier autonome** avec son propre modele de Poisson ; ne
+  garde que les marches a au moins 45 % de probabilite, avec cote juste + 5 %.
 
-Vous pouvez ajouter vos propres fichiers `.py` dans ce dossier, **hors du package
-`football_betting_matrix`**. Chaque module expose `NAME`, `DESCRIPTION` et une
-fonction `evaluate(probabilities, context=None)` renvoyant une liste de cotes
-(`label`, `prob`, `odd` et champs optionnels). Le bouton **Recharger** relit le
-dossier sans redemarrer l'application, et le choix de la strategie est sauvegarde
-dans `data/settings.json`.
+Chaque strategie est un fichier `.py` independant dans `user_strategies/`, **hors
+du package `football_betting_matrix`**. Chaque module expose `NAME`, `DESCRIPTION`,
+`analyze(...)` (son modele) et `evaluate(probabilities, context=None)` (ses cotes).
+Aucun fichier de strategie n'importe un autre fichier de strategie.
+
+Le bouton **Recharger** relit le dossier sans redemarrer l'application, et le choix
+de la strategie est sauvegarde dans `data/settings.json`.
 
 Le contrat complet et un exemple minimal sont decrits dans
 `user_strategies/README.md`.
@@ -161,7 +166,7 @@ python -m unittest discover -s tests -v
 
 ```text
 football_betting_matrix/
-  analysis.py      Modele Poisson, cotes calculees
+  analysis.py      Helpers generiques de cotes (parsing, marge)
   config.py        Configuration et valeurs par defaut
   store.py         Cache memoire et reglages JSON
   errors.py        Exceptions des sources de donnees
@@ -169,8 +174,8 @@ football_betting_matrix/
   sources.py       Sources gratuites et normalisation
   strategies.py    Chargement et validation des strategies
   ui/              Interface PyQt6
-user_strategies/     Strategies utilisateur (hors du coeur)
-  classic_edge.py    Cote juste (defaut)
+user_strategies/     Modeles et strategies utilisateur (hors du coeur)
+  poisson.py         Poisson (defaut)
   strict_value.py    Cote prudente (marge +5 %)
 scripts/
   import_football_data.py

@@ -1,8 +1,12 @@
-"""Chargement et validation des strategies de calcul de cotes utilisateur.
+"""Chargement et validation des strategies utilisateur.
 
 Une strategie est un module Python place dans le dossier ``user_strategies`` a la
 racine du projet. Elle expose ``NAME``, ``DESCRIPTION`` et une fonction
 ``evaluate(probabilities, context=None)`` qui renvoie une liste de cotes calculees.
+
+Une strategie peut aussi exposer ``analyze(fixtures, ...)`` : elle fournit alors
+les probabilites du match. C'est ce qui permet de garder le modele (Poisson, ou
+un autre) hors du coeur de l'application.
 """
 
 from __future__ import annotations
@@ -13,14 +17,23 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from .analysis import model_odds
 from .config import DEFAULT_ODDS_STRATEGY
 
 DEFAULT_STRATEGY_ID = DEFAULT_ODDS_STRATEGY
 STRATEGY_DIR_NAME = "user_strategies"
 
 Evaluate = Callable[[dict, dict | None], list[dict]]
+Analyze = Callable[..., dict]
 REQUIRED_FIELDS = ("label", "prob", "odd")
+MARKET_LABELS = {
+    "home": "Victoire domicile",
+    "draw": "Match nul",
+    "away": "Victoire exterieur",
+    "over25": "Plus de 2.5 buts",
+    "under25": "Moins de 2.5 buts",
+    "btts_yes": "Les deux equipes marquent",
+    "btts_no": "Les deux equipes ne marquent pas",
+}
 
 
 @dataclass(frozen=True)
@@ -29,6 +42,7 @@ class Strategy:
     name: str
     description: str
     evaluate: Evaluate
+    analyze: Analyze | None = None
 
     def run(self, probabilities: dict, context: dict | None = None) -> list[dict]:
         """Appelle la strategie et ne garde que les lignes exploitables par l'UI."""
@@ -65,6 +79,33 @@ class StrategyCatalog:
                 return strategy
         return self.strategies[0] if self.strategies else None
 
+    def probability_model(self) -> Strategy | None:
+        """Premiere strategie capable de produire les probabilites du match."""
+        for strategy in self.strategies:
+            if strategy.analyze is not None:
+                return strategy
+        return None
+
+
+def model_odds(probabilities: dict) -> list[dict]:
+    """Convertit des probabilites de marche en cotes justes."""
+    results: list[dict] = []
+    for key, label in MARKET_LABELS.items():
+        prob = probabilities.get(key)
+        if prob is None or prob <= 0:
+            continue
+        fair = round(1.0 / float(prob), 3)
+        results.append(
+            {
+                "key": key,
+                "label": label,
+                "prob": round(float(prob), 4),
+                "fair_odd": fair,
+                "odd": fair,
+            }
+        )
+    return results
+
 
 def base_rows(probabilities: dict) -> list[dict]:
     """Cotes justes de base (1 / probabilite) reutilisables par les strategies."""
@@ -99,6 +140,11 @@ def load_strategies(directory: Path) -> StrategyCatalog:
     if not directory.is_dir():
         return StrategyCatalog()
 
+    # Les strategies peuvent importer un module voisin (ex. poisson.py) sans package.
+    directory_str = str(directory.resolve())
+    if directory_str not in sys.path:
+        sys.path.insert(0, directory_str)
+
     strategies: list[Strategy] = []
     errors: list[str] = []
     for path in sorted(directory.glob("*.py")):
@@ -113,12 +159,16 @@ def load_strategies(directory: Path) -> StrategyCatalog:
                 raise ValueError("NAME manquant ou invalide")
             if not callable(evaluate):
                 raise ValueError("fonction evaluate() manquante")
+            analyze = getattr(module, "analyze", None)
+            if analyze is not None and not callable(analyze):
+                raise ValueError("analyze() present mais non appelable")
             strategies.append(
                 Strategy(
                     id=path.stem,
                     name=name.strip(),
                     description=str(getattr(module, "DESCRIPTION", "") or ""),
                     evaluate=evaluate,
+                    analyze=analyze,
                 )
             )
         except Exception as exc:  # une strategie utilisateur ne doit pas casser l'UI
