@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QDateEdit,
     QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -138,6 +139,9 @@ class MatchesPage(BasePage):
             stretch_columns=[2, 4],
             row_height=44,
         )
+        header = self.live_table.horizontalHeader()
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(6, 96)
         self.live_table.cellDoubleClicked.connect(self._on_live_double_click)
         self.live_stack.addWidget(self.live_table)
         self.live_empty_holder = QWidget()
@@ -202,6 +206,9 @@ class MatchesPage(BasePage):
             stretch_columns=[2, 4],
             row_height=44,
         )
+        header = self.archive_table.horizontalHeader()
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(5, 96)
         self.archive_table.cellDoubleClicked.connect(self._on_archive_double_click)
         self.archive_stack.addWidget(self.archive_table)
         self.archive_empty_holder = QWidget()
@@ -362,7 +369,7 @@ class MatchesPage(BasePage):
         action_layout = QHBoxLayout(actions)
         action_layout.setContentsMargins(2, 2, 2, 2)
         action_layout.setSpacing(5)
-        analyze = SmallButton("Analyser")
+        analyze = SmallButton("Analyser", primary=True)
         analyze.clicked.connect(lambda _checked=False, f=fixture: self.open_analysis.emit(f))
         action_layout.addWidget(analyze)
         table.setCellWidget(row, 6, actions)
@@ -502,7 +509,7 @@ class MatchesPage(BasePage):
             action_layout = QHBoxLayout(actions)
             action_layout.setContentsMargins(2, 2, 2, 2)
             action_layout.setSpacing(5)
-            analyze = SmallButton("Analyser")
+            analyze = SmallButton("Analyser", primary=True)
             analyze.clicked.connect(lambda _checked=False, f=fixture: self.open_analysis.emit(f))
             action_layout.addWidget(analyze)
             table.setCellWidget(row, 5, actions)

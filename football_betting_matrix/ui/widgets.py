@@ -435,10 +435,18 @@ class Divider(QFrame):
 
 
 class SmallButton(QPushButton):
-    def __init__(self, text: str, primary: bool = False, parent=None):
+    def __init__(
+        self,
+        text: str,
+        primary: bool = False,
+        danger: bool = False,
+        parent=None,
+    ):
         super().__init__(text, parent)
         if primary:
             self.setObjectName("primary")
+        elif danger:
+            self.setObjectName("danger")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setStyleSheet("padding: 4px 9px; font-size: 8.5pt;")
 

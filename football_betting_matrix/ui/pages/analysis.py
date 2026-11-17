@@ -180,17 +180,24 @@ class AnalysisPage(BasePage):
         row.addWidget(self.fixture_combo, 1)
 
         self.load_button = QPushButton("Charger la saison")
+        self.load_button.setMinimumWidth(self.load_button.sizeHint().width())
         self.load_button.clicked.connect(lambda: self._load_fixture_list(force=True))
         row.addWidget(self.load_button)
+        card.add_layout(row)
 
+        action_row = QHBoxLayout()
+        action_row.setSpacing(8)
+        action_row.addStretch()
         self.ai_button = QPushButton("Analyser avec l'IA")
+        self.ai_button.setObjectName("primary")
+        self.ai_button.setMinimumWidth(self.ai_button.sizeHint().width())
         self.ai_button.setToolTip(
             "Ouvrir une fenetre pour interroger Ollama avec l'analyse courante"
         )
         self.ai_button.clicked.connect(self._open_ai_dialog)
         self.ai_button.setEnabled(False)
-        row.addWidget(self.ai_button)
-        card.add_layout(row)
+        action_row.addWidget(self.ai_button)
+        card.add_layout(action_row)
 
         hint = QLabel(
             "Pour un match recent, cliquez sur « Analyser » depuis la page Matchs. "

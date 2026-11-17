@@ -5,6 +5,7 @@ from __future__ import annotations
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QHBoxLayout,
+    QHeaderView,
     QPushButton,
     QStackedWidget,
     QTableWidget,
@@ -50,6 +51,9 @@ class LeaguesPage(BasePage):
             stretch_columns=[0],
             row_height=44,
         )
+        header = self.tracked_table.horizontalHeader()
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(4, 100)
         tracked_card.add(self.tracked_table, 1)
         self.root.addWidget(tracked_card, 3)
 
@@ -69,6 +73,9 @@ class LeaguesPage(BasePage):
             stretch_columns=[0],
             row_height=42,
         )
+        header = self.available_table.horizontalHeader()
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(3, 100)
         self.available_stack.addWidget(self.available_table)
         self.available_empty = QWidget()
         self.available_empty_layout = QVBoxLayout(self.available_empty)
@@ -103,8 +110,7 @@ class LeaguesPage(BasePage):
             if league.get("default"):
                 source_text = "Gratuite • defaut"
             self.tracked_table.setItem(row, 3, table_item(source_text, color=source_color))
-            remove_button = SmallButton("Retirer")
-            remove_button.setObjectName("danger")
+            remove_button = SmallButton("Retirer", danger=True)
             remove_button.clicked.connect(
                 lambda _checked=False, league_id=int(league.get("id")): self._remove(league_id)
             )
