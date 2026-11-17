@@ -60,6 +60,12 @@ def _format_stat(value: object) -> str:
     return str(value)
 
 
+def _odd_text(value: object) -> str:
+    if value is None:
+        return "—"
+    return f"{float(value):.2f}"
+
+
 class AnalysisPage(BasePage):
 
     def __init__(self, service: DataService, parent=None):
@@ -93,6 +99,12 @@ class AnalysisPage(BasePage):
         self.content_layout.addWidget(self.analysis_banner)
         self.content_layout.addWidget(self._build_data_card())
 
+        odds_row = QHBoxLayout()
+        odds_row.setSpacing(14)
+        odds_row.addWidget(self._build_odds_card(), 1)
+        odds_row.addWidget(self._build_market_card(), 1)
+        self.content_layout.addLayout(odds_row)
+
         columns = QHBoxLayout()
         columns.setSpacing(14)
         left = QVBoxLayout()
@@ -100,7 +112,6 @@ class AnalysisPage(BasePage):
         right = QVBoxLayout()
         right.setSpacing(14)
         left.addWidget(self._build_standings_card())
-        right.addWidget(self._build_odds_card())
         right.addWidget(self._build_team_card())
         columns.addLayout(left, 3)
         columns.addLayout(right, 2)
@@ -108,8 +119,8 @@ class AnalysisPage(BasePage):
         self.content_layout.addWidget(
             Banner(
                 "Analyse informative : le modele ne remplace pas votre jugement et ne garantit "
-                "aucun resultat. Les cotes affichees sont estimees, pas des cotes de bookmaker. "
-                "Jouez de facon responsable.",
+                "aucun resultat. Comparer les cotes estimees (gauche) aux cotes de marche du CSV "
+                "(droite). Jouez de facon responsable.",
                 "info",
             )
         )
@@ -281,6 +292,7 @@ class AnalysisPage(BasePage):
         self.market_label.setText("Marche : —")
         self.referee_label.setText("Arbitre : —")
         self.data_banner.set_message("")
+        self._reset_market()
 
     def _render_data(self) -> None:
         context = (self.model or {}).get("context") or {}
@@ -341,6 +353,7 @@ class AnalysisPage(BasePage):
             )
         else:
             self.data_banner.set_message("")
+        self._render_market()
 
     # -------------------------------------------------------------- classement
 
@@ -618,7 +631,7 @@ class AnalysisPage(BasePage):
         self.standings_stack.setCurrentIndex(1)
 
     def _build_odds_card(self) -> Card:
-        card = Card("Cotes calculees", "Cotes estimees par le modele selon la strategie")
+        card = Card("Cotes modele", "Cotes estimees par la strategie")
         self.odds_badge = Badge("—", "gray")
         card.add_header_widget(self.odds_badge)
         self.odds_banner = Banner()
@@ -662,6 +675,143 @@ class AnalysisPage(BasePage):
         self.odds_table.setVisible(False)
         card.add(self.odds_table)
         return card
+
+    # --------------------------------------------------------- cotes du marche
+
+    def _build_market_card(self) -> Card:
+        card = Card(
+            "Cotes marche",
+            "1X2 et Over/Under reels du CSV (ouverture, cloture, bookmakers)",
+        )
+        self.market_banner = Banner()
+        card.add(self.market_banner)
+
+        self.market_empty = QLabel(
+            "Selectionnez un match et lancez l'analyse pour afficher les cotes "
+            "de marche 1X2 et Over/Under."
+        )
+        self.market_empty.setWordWrap(True)
+        self.market_empty.setObjectName("small")
+        card.add(self.market_empty)
+
+        self.market_1x2_table = QTableWidget()
+        configure_table(
+            self.market_1x2_table,
+            ["Source", "1", "N", "2"],
+            stretch_columns=[0],
+            row_height=32,
+        )
+        self.market_1x2_table.setMinimumHeight(190)
+        self.market_1x2_table.setVisible(False)
+        card.add(self.market_1x2_table)
+
+        self.market_ou_table = QTableWidget()
+        configure_table(
+            self.market_ou_table,
+            ["Source", "Over 2.5", "Under 2.5"],
+            stretch_columns=[0],
+            row_height=32,
+        )
+        self.market_ou_table.setMinimumHeight(150)
+        self.market_ou_table.setVisible(False)
+        card.add(self.market_ou_table)
+
+        self.market_summary_label = QLabel("")
+        self.market_summary_label.setObjectName("small")
+        self.market_summary_label.setWordWrap(True)
+        card.add(self.market_summary_label)
+        return card
+
+    def _reset_market(self) -> None:
+        self.market_banner.set_message("")
+        self.market_empty.setVisible(True)
+        self.market_1x2_table.setVisible(False)
+        self.market_1x2_table.setRowCount(0)
+        self.market_ou_table.setVisible(False)
+        self.market_ou_table.setRowCount(0)
+        self.market_summary_label.setText("")
+
+    def _render_market(self) -> None:
+        market = ((self.model or {}).get("context") or {}).get("market") or {}
+        if not market:
+            self._reset_market()
+            self.market_banner.set_message(
+                "Cotes de marche indisponibles pour ce match dans le CSV.", "warning"
+            )
+            return
+
+        sources = (
+            ("opening", "Ouverture"),
+            ("closing", "Cloture"),
+            ("pinnacle", "Pinnacle"),
+            ("consensus", "Consensus"),
+            ("best", "Meilleur prix"),
+        )
+        one_two_x_rows = []
+        for key, label in sources:
+            odds = market.get(key) or {}
+            if any(odds.get(side) is not None for side in ("home", "draw", "away")):
+                one_two_x_rows.append(
+                    (
+                        label,
+                        _odd_text(odds.get("home")),
+                        _odd_text(odds.get("draw")),
+                        _odd_text(odds.get("away")),
+                    )
+                )
+        totals = market.get("totals") or {}
+        totals_rows = []
+        for key, label in sources:
+            odds = totals.get(key) or {}
+            if any(odds.get(side) is not None for side in ("over25", "under25")):
+                totals_rows.append(
+                    (
+                        label,
+                        _odd_text(odds.get("over25")),
+                        _odd_text(odds.get("under25")),
+                    )
+                )
+
+        self.market_empty.setVisible(False)
+        self.market_1x2_table.setRowCount(len(one_two_x_rows))
+        for row, values in enumerate(one_two_x_rows):
+            for column, value in enumerate(values):
+                self.market_1x2_table.setItem(
+                    row, column, table_item(value, color=TEXT if column == 0 else MUTED)
+                )
+        self.market_1x2_table.setVisible(bool(one_two_x_rows))
+
+        self.market_ou_table.setRowCount(len(totals_rows))
+        for row, values in enumerate(totals_rows):
+            for column, value in enumerate(values):
+                self.market_ou_table.setItem(
+                    row, column, table_item(value, color=TEXT if column == 0 else MUTED)
+                )
+        self.market_ou_table.setVisible(bool(totals_rows))
+
+        reference = market.get("reference") or "cloture"
+        probabilities = market.get("probabilities") or {}
+        margin = market.get("margin")
+        parts = [f"Reference : {reference}"]
+        for key, label in (("home", "1"), ("draw", "N"), ("away", "2")):
+            if probabilities.get(key) is not None:
+                parts.append(f"{label} {_pct(probabilities[key])}")
+        if margin is not None:
+            parts.append(f"marge {_pct(margin)}")
+        movement = market.get("movement") or {}
+        if movement:
+            moves = [
+                f"{label} {float(value) * 100:+.1f} %"
+                for key, label in (("home", "1"), ("draw", "N"), ("away", "2"))
+                if (value := movement.get(key)) is not None
+            ]
+            if moves:
+                parts.append("mouvement Ouverture -> Cloture : " + ", ".join(moves))
+        self.market_summary_label.setText(" · ".join(parts))
+        self.market_banner.set_message(
+            "Cotes observees sur le marche, distinctes des cotes estimees par les strategies.",
+            "info",
+        )
 
     # ------------------------------------------------------------- strategies
 

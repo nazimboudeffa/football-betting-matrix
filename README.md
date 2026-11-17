@@ -25,6 +25,10 @@ l'application.
   asiatique et statistiques de l'arbitre.
 - Cotes calculees : chaque strategie de `user_strategies/` est un fichier autonome
   qui fournit son modele de probabilites et leur conversion en cotes.
+- Comparaison cote a cote dans la page **Analyse** : « Cotes modele » (cotes
+  estimees par la strategie) a gauche et « Cotes marche » a droite, avec les
+  tableaux 1X2 et Over/Under 2.5 (ouverture, cloture, Pinnacle, consensus et
+  meilleur prix).
 - Analyse IA : envoi du prompt, des donnees du match, du modele, du classement
   de la ligue et de toutes les strategies a une instance Ollama locale, avec
   choix du modele.
@@ -111,10 +115,10 @@ Les saisons disponibles sont pilotees par `FREE_SEASONS`. Par defaut :
 - Les ligues CSV supplementaires (Championship, Eredivisie, Ligue 2, etc.)
   ne contiennent que des matchs deja joues : pas de calendrier futur, donc pas
   de matchs du jour pour ces championnats.
-- Les cotes des strategies affichees dans la page Analyse sont **estimees par le
-  modele** (`1 / probabilite`, eventuellement ajuste par la strategie). Les cotes
-  presentes dans la section « Donnees du match » sont, elles, des cotes de marche
-  reelles issues du CSV. Il n'y a plus de saisie manuelle ni de chargement de cotes.
+- Les cotes du panneau « Cotes modele » sont **estimees par le modele**
+  (`1 / probabilite`, eventuellement ajuste par la strategie). Celles du panneau
+  « Cotes marche » et de la section « Donnees du match » sont des cotes reelles
+  issues du CSV. Il n'y a plus de saisie manuelle ni de chargement de cotes.
 - Les donnees gratuites peuvent etre partielles, retardees ou absentes pour
   certaines journees. Le cache en memoire evite seulement les telechargements
   redondants pendant la session en cours.
