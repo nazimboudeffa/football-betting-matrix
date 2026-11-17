@@ -119,9 +119,12 @@ DEFAULT_LEAGUES: list[dict] = [
     },
 ]
 
+DEFAULT_ODDS_STRATEGY = "classic_edge"
+
 DEFAULT_SETTINGS: dict = {
     "default_season": DEFAULT_SEASON,
     "tracked_leagues": DEFAULT_LEAGUES,
+    "value_strategy": DEFAULT_ODDS_STRATEGY,
 }
 
 

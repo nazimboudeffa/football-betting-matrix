@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import Any, Callable
 
-from .analysis import analyze_match, value_bets
+from .analysis import analyze_match
 from .config import DEFAULT_SETTINGS, Config
 from .errors import SourceError
 from .sources import (
@@ -16,6 +16,7 @@ from .sources import (
     season_start_year,
 )
 from .store import JsonSettingsStore, MemoryCache
+from .strategies import DEFAULT_STRATEGY_ID, StrategyCatalog, load_strategies, strategies_dir
 
 STATUS_LABELS = {
     "TBD": "A venir",
@@ -137,6 +138,7 @@ class DataService:
         self.config = config
         self.cache = cache
         self.settings_store = settings
+        self.strategies = load_strategies(strategies_dir(config.root_dir))
         self.free = FreeSources(config, cache)
 
     # --------------------------------------------------------------- reglages
@@ -147,6 +149,18 @@ class DataService:
     def save_settings(self, settings: dict) -> dict:
         self.settings_store.save_settings(settings)
         return settings
+
+    def value_strategy_id(self) -> str:
+        return str(self.settings().get("value_strategy") or DEFAULT_STRATEGY_ID)
+
+    def set_value_strategy(self, strategy_id: str) -> None:
+        settings = self.settings()
+        settings["value_strategy"] = strategy_id
+        self.save_settings(settings)
+
+    def reload_strategies(self) -> StrategyCatalog:
+        self.strategies = load_strategies(strategies_dir(self.config.root_dir))
+        return self.strategies
 
     def update_settings(self, patch: dict) -> dict:
         settings = self.settings()
@@ -253,10 +267,7 @@ class DataService:
         odds = self.free.odds_from_fixture(item)
         warning = None
         if not odds:
-            warning = (
-                "Cotes non disponibles pour ce match gratuit. "
-                "Saisissez vos cotes manuellement."
-            )
+            warning = "Cotes non disponibles pour ce match gratuit."
         return {
             "odds": odds,
             "bookmaker_count": 1 if odds else 0,
@@ -410,19 +421,6 @@ class DataService:
             k: season_data.get(k)
             for k in ("cached", "stale", "warning", "fetched_at", "source", "sources")
         }
-        return model
-
-    def value_analysis(
-        self,
-        fixture: dict,
-        season: int,
-        odds: dict[str, dict] | None,
-        force: bool = False,
-    ) -> dict:
-        model = self.analyze_fixture(fixture, season, force=force)
-        odds_map = odds or {}
-        model["value_bets"] = value_bets(model["probabilities"], odds_map)
-        model["odds"] = odds_map
         return model
 
     # -------------------------------------------------------------- warmup

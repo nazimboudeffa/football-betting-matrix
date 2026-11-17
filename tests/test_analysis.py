@@ -1,4 +1,4 @@
-"""Tests du modele Poisson et des calculs de value bets."""
+"""Tests du modele Poisson et des cotes calculees."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ from football_betting_matrix.analysis import (
     analyze_match,
     build_season_stats,
     implied_probability,
+    model_odds,
     odds_summary,
     parse_odds,
     poisson_matrix,
     probabilities_from_matrix,
-    value_bets,
 )
 
 
@@ -191,20 +191,15 @@ class OddsTests(unittest.TestCase):
         self.assertAlmostEqual(odds["over25"]["odd"], 1.9, places=3)
         self.assertEqual(parsed["bookmaker_count"], 2)
 
-    def test_value_bets(self) -> None:
-        bets = value_bets(
-            {"home": 0.60, "draw": 0.25, "away": 0.15},
-            {"home": 2.0, "draw": 3.0, "away": 6.0},
-        )
-        self.assertEqual(len(bets), 3)
-        by_key = {bet["key"]: bet for bet in bets}
-        self.assertTrue(by_key["home"]["recommended"])
-        self.assertAlmostEqual(by_key["home"]["edge"], 0.10, places=4)
-        self.assertAlmostEqual(by_key["away"]["edge"], -0.0167, places=4)
-        self.assertFalse(by_key["away"]["recommended"])
-        self.assertEqual(bets[0]["key"], "home")
-        self.assertAlmostEqual(by_key["home"]["fair_odd"], 1.67, places=2)
-        self.assertNotIn("kelly", by_key["home"])
+    def test_model_odds(self) -> None:
+        rows = model_odds({"home": 0.60, "draw": 0.25, "away": 0.15})
+        by_key = {row["key"]: row for row in rows}
+        self.assertEqual(len(rows), 3)
+        self.assertAlmostEqual(by_key["home"]["fair_odd"], 1.667, places=2)
+        self.assertEqual(by_key["home"]["odd"], by_key["home"]["fair_odd"])
+        self.assertAlmostEqual(by_key["away"]["fair_odd"], 6.667, places=2)
+        self.assertNotIn("edge", by_key["home"])
+        self.assertNotIn("recommended", by_key["home"])
 
     def test_implied_probability_and_margin(self) -> None:
         self.assertAlmostEqual(implied_probability(2.0), 0.5)

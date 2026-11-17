@@ -1,14 +1,12 @@
-"""Page Analyse : modele Poisson, value bets et cotes des sources gratuites."""
+"""Page Analyse : modele Poisson, cotes calculees et strategies utilisateur."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QComboBox,
-    QDoubleSpinBox,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -21,16 +19,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ...analysis import MARKET_LABELS, value_bets
 from ...service import DataService
 from ...theme import (
     ACCENT,
     AMBER,
     BLUE,
-    BORDER,
     MUTED,
     PURPLE,
-    RED,
     TEXT,
     TEXT_SOFT,
 )
@@ -61,13 +56,9 @@ class AnalysisPage(BasePage):
         super().__init__(service, parent)
         self.fixture: dict | None = None
         self.model: dict | None = None
-        self.odds_data: dict | None = None
-        self.active_odds: dict[str, dict] = {}
         self._analysis_loading = False
-        self._odds_loading = False
         self._fixture_list_loading = False
-        self._pending_odds: dict[str, dict] | None = None
-        self._current_value_bets: list[dict] = []
+        self._current_odds: list[dict] = []
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -94,7 +85,7 @@ class AnalysisPage(BasePage):
         left.addWidget(self._build_model_card())
         left.addWidget(self._build_markets_card())
         left.addWidget(self._build_scores_card())
-        right.addWidget(self._build_value_card())
+        right.addWidget(self._build_odds_card())
         right.addWidget(self._build_team_card())
         columns.addLayout(left, 3)
         columns.addLayout(right, 2)
@@ -102,7 +93,8 @@ class AnalysisPage(BasePage):
         self.content_layout.addWidget(
             Banner(
                 "Analyse informative : le modele ne remplace pas votre jugement et ne garantit "
-                "aucun resultat. Les cotes peuvent varier. Jouez de facon responsable.",
+                "aucun resultat. Les cotes affichees sont estimees, pas des cotes de bookmaker. "
+                "Jouez de facon responsable.",
                 "info",
             )
         )
@@ -196,16 +188,6 @@ class AnalysisPage(BasePage):
         self.match_status_holder = QHBoxLayout()
         self.match_status_holder.addStretch()
         right.addLayout(self.match_status_holder)
-
-        buttons = QHBoxLayout()
-        buttons.setSpacing(6)
-        self.odds_button = QPushButton("Charger les cotes")
-        self.odds_button.setToolTip(
-            "Cotes 1X2 et Over/Under 2.5 disponibles dans les CSV gratuits"
-        )
-        self.odds_button.clicked.connect(lambda: self.load_odds())
-        buttons.addWidget(self.odds_button)
-        right.addLayout(buttons)
         layout.addLayout(right)
         card.add_layout(layout)
         return card
@@ -261,98 +243,132 @@ class AnalysisPage(BasePage):
         card.add(self.scores_table)
         return card
 
-    def _build_value_card(self) -> Card:
-        card = Card("Value bets", "Comparez le modele aux cotes du marche")
-        self.value_badge = Badge("—", "gray")
-        card.add_header_widget(self.value_badge)
-        self.value_banner = Banner()
-        card.add(self.value_banner)
+    def _build_odds_card(self) -> Card:
+        card = Card("Cotes calculees", "Cotes estimees par le modele selon la strategie")
+        self.odds_badge = Badge("—", "gray")
+        card.add_header_widget(self.odds_badge)
+        self.odds_banner = Banner()
+        card.add(self.odds_banner)
 
-        actions = QHBoxLayout()
-        actions.setSpacing(6)
-        self.fetch_odds_button = QPushButton("Charger les cotes")
-        self.fetch_odds_button.setObjectName("primary")
-        self.fetch_odds_button.clicked.connect(lambda: self.load_odds())
-        actions.addWidget(self.fetch_odds_button)
-        self.manual_toggle = QPushButton("Saisir mes cotes")
-        self.manual_toggle.clicked.connect(self._toggle_manual)
-        actions.addWidget(self.manual_toggle)
-        actions.addStretch()
-        self.odds_source_label = QLabel("Aucune cote chargee")
-        self.odds_source_label.setObjectName("small")
-        actions.addWidget(self.odds_source_label)
-        card.add_layout(actions)
+        strategy_row = QHBoxLayout()
+        strategy_row.setSpacing(6)
+        strategy_row.addWidget(QLabel("Strategie"))
+        self.strategy_combo = QComboBox()
+        self.strategy_combo.setMinimumWidth(210)
+        self.strategy_combo.currentIndexChanged.connect(self._on_strategy_changed)
+        strategy_row.addWidget(self.strategy_combo, 1)
+        reload_button = QPushButton("Recharger")
+        reload_button.setToolTip("Relire les fichiers du dossier user_strategies")
+        reload_button.clicked.connect(self._reload_strategies)
+        strategy_row.addWidget(reload_button)
+        card.add_layout(strategy_row)
 
-        self.manual_panel = self._build_manual_panel()
-        self.manual_panel.setVisible(False)
-        card.add(self.manual_panel)
+        self.strategy_info = QLabel("")
+        self.strategy_info.setObjectName("small")
+        self.strategy_info.setWordWrap(True)
+        card.add(self.strategy_info)
+        self._populate_strategies()
 
-        self.value_empty = QLabel(
-            "Chargez les cotes disponibles (CSV gratuit) ou saisissez vos propres "
-            "cotes pour detecter les value bets, l'edge et l'EV."
+        self.odds_empty = QLabel(
+            "Selectionnez un match et lancez l'analyse pour afficher les cotes "
+            "calculees par le modele."
         )
-        self.value_empty.setWordWrap(True)
-        self.value_empty.setObjectName("small")
-        card.add(self.value_empty)
+        self.odds_empty.setWordWrap(True)
+        self.odds_empty.setObjectName("small")
+        card.add(self.odds_empty)
 
-        self.value_table = QTableWidget()
+        self.odds_table = QTableWidget()
         configure_table(
-            self.value_table,
-            ["Marche", "Cote", "Book", "Proba", "Edge", "EV", "Cote juste"],
+            self.odds_table,
+            ["Marche", "Cote calculee", "Proba", "Cote juste", "Signal"],
             stretch_columns=[0],
             row_height=36,
         )
-        self.value_table.setMinimumHeight(270)
-        self.value_table.setVisible(False)
-        card.add(self.value_table)
+        self.odds_table.setMinimumHeight(270)
+        self.odds_table.setVisible(False)
+        card.add(self.odds_table)
         return card
 
-    def _build_manual_panel(self) -> QWidget:
-        panel = QWidget()
-        panel.setStyleSheet(f"background: #0d1520; border: 1px solid {BORDER}; border-radius: 9px;")
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(8)
-        title = QLabel("Cotes manuelles (decimale europeenne)")
-        title.setStyleSheet(f"color: {TEXT_SOFT}; font-weight: 600;")
-        layout.addWidget(title)
+    # ------------------------------------------------------------- strategies
 
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(8)
-        grid.setVerticalSpacing(6)
-        self.manual_spins: dict[str, QDoubleSpinBox] = {}
-        fields = [
-            ("home", "Domicile"),
-            ("draw", "Nul"),
-            ("away", "Exterieur"),
-            ("over25", "Plus 2.5"),
-            ("under25", "Moins 2.5"),
-            ("btts_yes", "BTTS oui"),
-            ("btts_no", "BTTS non"),
-        ]
-        for index, (key, label) in enumerate(fields):
-            spin = QDoubleSpinBox()
-            spin.setRange(0.0, 1000.0)
-            spin.setDecimals(2)
-            spin.setSingleStep(0.05)
-            spin.setSpecialValueText("—")
-            self.manual_spins[key] = spin
-            row, col = divmod(index, 4)
-            grid.addWidget(QLabel(label), row * 2, col)
-            grid.addWidget(spin, row * 2 + 1, col)
-        layout.addLayout(grid)
+    def _populate_strategies(self) -> None:
+        selected = self.service.value_strategy_id()
+        self.strategy_combo.blockSignals(True)
+        self.strategy_combo.clear()
+        for strategy in self.service.strategies.strategies:
+            self.strategy_combo.addItem(strategy.name, strategy.id)
+        index = self.strategy_combo.findData(selected)
+        if index >= 0:
+            self.strategy_combo.setCurrentIndex(index)
+        self.strategy_combo.setEnabled(self.strategy_combo.count() > 0)
+        self.strategy_combo.blockSignals(False)
+        if index < 0 and self.strategy_combo.count() > 0:
+            self.service.set_value_strategy(self.strategy_combo.currentData())
+        self._update_strategy_info()
 
-        buttons = QHBoxLayout()
-        apply_button = QPushButton("Calculer la value")
-        apply_button.setObjectName("primary")
-        apply_button.clicked.connect(self._apply_manual_odds)
-        buttons.addWidget(apply_button)
-        clear_button = QPushButton("Effacer")
-        clear_button.clicked.connect(self._clear_manual_odds)
-        buttons.addWidget(clear_button)
-        buttons.addStretch()
-        layout.addLayout(buttons)
-        return panel
+    def _update_strategy_info(self) -> None:
+        strategy = self.service.strategies.get(self.service.value_strategy_id())
+        if strategy is None:
+            self.strategy_info.setText("Aucune strategie trouvee dans le dossier user_strategies/.")
+            self.strategy_info.setStyleSheet(f"color: {AMBER};")
+            return
+        text = strategy.description or strategy.name
+        errors = self.service.strategies.errors
+        if errors:
+            text += f" • {len(errors)} strategie(s) ignoree(s)"
+        self.strategy_info.setText(text)
+        self.strategy_info.setStyleSheet(
+            f"color: {AMBER};" if errors else f"color: {TEXT_SOFT};"
+        )
+
+    def _on_strategy_changed(self, _index: int) -> None:
+        strategy_id = self.strategy_combo.currentData()
+        if not strategy_id:
+            return
+        self.service.set_value_strategy(strategy_id)
+        self._update_strategy_info()
+        self._recompute_odds()
+
+    def _reload_strategies(self) -> None:
+        self.service.reload_strategies()
+        self._populate_strategies()
+        self._recompute_odds()
+        self.toast.emit("Strategies rechargees depuis user_strategies/.")
+
+    def _recompute_odds(self) -> None:
+        if not self.model:
+            return
+        strategy = self.service.strategies.get(self.service.value_strategy_id())
+        if strategy is None:
+            self.odds_banner.set_message(
+                "Aucune strategie disponible dans le dossier user_strategies/.", "warning"
+            )
+            self._render_odds([])
+            return
+        try:
+            rows = strategy.run(self.model["probabilities"])
+        except Exception as exc:  # une strategie utilisateur ne doit pas casser l'UI
+            self.odds_banner.set_message(
+                f"Strategie « {strategy.name} » en erreur : {exc}", "error"
+            )
+            rows = []
+        else:
+            self.odds_banner.set_message(
+                f"Cotes estimees avec la strategie « {strategy.name} ». "
+                "Ce ne sont pas des cotes de bookmaker.",
+                "info",
+            )
+        self._current_odds = rows
+        self._render_odds(rows)
+
+    def _reset_odds(self) -> None:
+        self._current_odds = []
+        self.odds_banner.set_message("")
+        self.odds_table.setVisible(False)
+        self.odds_table.setRowCount(0)
+        self.odds_empty.setVisible(True)
+        self.odds_badge.setText("—")
+        self.odds_badge.set_kind("gray")
 
     def _build_team_card(self) -> Card:
         card = Card("Forme & statistiques", "Splits domicile / exterieur de la saison")
@@ -427,22 +443,8 @@ class AnalysisPage(BasePage):
         """Appele depuis la page Matchs ou le tableau de bord."""
         self.fixture = fixture
         self.model = None
-        self.odds_data = None
-        self.active_odds = {}
-        self._current_value_bets = []
-        self._pending_odds = None
         self.analysis_banner.set_message("")
-        self.value_banner.set_message("")
-        self.value_table.setVisible(False)
-        self.value_table.setRowCount(0)
-        self.value_empty.setVisible(True)
-        self.odds_source_label.setText("Aucune cote chargee")
-        self.value_badge.setText("—")
-        self.value_badge.set_kind("gray")
-        for spin in self.manual_spins.values():
-            spin.blockSignals(True)
-            spin.setValue(0.0)
-            spin.blockSignals(False)
+        self._reset_odds()
 
         league = fixture.get("league", {})
         league_id = league.get("id")
@@ -541,16 +543,7 @@ class AnalysisPage(BasePage):
             return
         self.fixture = fixture
         self.model = None
-        self.odds_data = None
-        self.active_odds = {}
-        self._pending_odds = None
-        self._current_value_bets = []
-        self.value_table.setVisible(False)
-        self.value_table.setRowCount(0)
-        self.value_empty.setVisible(True)
-        self.odds_source_label.setText("Aucune cote chargee")
-        self.value_badge.setText("—")
-        self.value_badge.set_kind("gray")
+        self._reset_odds()
         self._render_header()
         self._set_controls_enabled(True)
         self._run_analysis()
@@ -578,15 +571,13 @@ class AnalysisPage(BasePage):
         warning = (model.get("_meta") or {}).get("warning")
         self.analysis_banner.set_message(warning or "", "warning" if warning else "info")
         self._render_model()
-        if self._pending_odds:
-            odds = self._pending_odds
-            self._pending_odds = None
-            self._apply_odds(odds, self.odds_source_label.text() or "Cotes manuelles")
+        self._recompute_odds()
 
     def _on_analysis_error(self, code: str, message: str) -> None:
         self._analysis_loading = False
         self.analysis_banner.set_message(message, "error")
         self.model = None
+        self._reset_odds()
 
     def _render_model(self) -> None:
         if not self.model:
@@ -676,160 +667,43 @@ class AnalysisPage(BasePage):
 
     # ---------------------------------------------------------------- cotes
 
-    def load_odds(self, force: bool = False) -> None:
-        if not self.fixture or self._odds_loading:
+    def _render_odds(self, rows: list[dict]) -> None:
+        self.odds_table.setRowCount(0)
+        if not rows:
+            self.odds_empty.setVisible(True)
+            self.odds_table.setVisible(False)
+            self.odds_badge.setText("—")
+            self.odds_badge.set_kind("gray")
             return
-        self._odds_loading = True
-        self.odds_button.setEnabled(False)
-        self.fetch_odds_button.setEnabled(False)
-        self.fetch_odds_button.setText("Chargement...")
-        self.odds_source_label.setText("Recuperation des cotes...")
-        fixture = self.fixture
-
-        self.run_task(
-            lambda _progress: self.service.odds_for_fixture(fixture, force=force),
-            self._on_odds_loaded,
-            self._on_odds_error,
-            busy_text="Recuperation des cotes...",
-        )
-
-    def _on_odds_loaded(self, result: dict) -> None:
-        self._odds_loading = False
-        self.odds_button.setEnabled(True)
-        self.fetch_odds_button.setEnabled(True)
-        self.fetch_odds_button.setText("Charger les cotes")
-        self.odds_data = result
-        odds = result.get("odds") or {}
-        if not odds:
-            self.odds_source_label.setText("Aucune cote disponible")
-            self.value_banner.set_message(
-                "Aucune cote trouvee pour ce match. Les matchs a venir des sources "
-                "gratuites n'ont pas encore de cotes CSV : saisissez vos cotes manuellement.",
-                "warning",
+        self.odds_empty.setVisible(False)
+        self.odds_table.setVisible(True)
+        self.odds_badge.setText(f"{len(rows)} COTES")
+        self.odds_badge.set_kind("blue")
+        self.odds_table.setRowCount(len(rows))
+        for row, item in enumerate(rows):
+            highlight = bool(item.get("highlight"))
+            color = ACCENT if highlight else TEXT
+            self.odds_table.setItem(
+                row, 0, table_item(str(item["label"]), bold=highlight, color=color)
             )
-            self.value_empty.setVisible(True)
-            self.value_table.setVisible(False)
-            return
-        self._fill_manual_odds(odds)
-        source_name = result.get("source") or "Cotes manuelles"
-        source = f"{source_name} • {result.get('bookmaker_count', 0)} source(s)"
-        self.odds_source_label.setText(source)
-        if result.get("warning"):
-            self.value_banner.set_message(result["warning"], "warning")
-        else:
-            self.value_banner.set_message("")
-        self._apply_odds(odds, source)
-
-    def _on_odds_error(self, code: str, message: str) -> None:
-        self._odds_loading = False
-        self.odds_button.setEnabled(True)
-        self.fetch_odds_button.setEnabled(True)
-        self.fetch_odds_button.setText("Charger les cotes")
-        self.odds_source_label.setText("Cotes indisponibles")
-        self.value_banner.set_message(
-            message + " Vous pouvez saisir vos cotes manuellement ci-dessous.", "warning"
-        )
-        self.value_empty.setVisible(True)
-        self.value_table.setVisible(False)
-
-    def _fill_manual_odds(self, odds: dict[str, dict]) -> None:
-        for key, spin in self.manual_spins.items():
-            entry = odds.get(key)
-            if entry:
-                spin.blockSignals(True)
-                spin.setValue(float(entry.get("odd") or 0.0))
-                spin.blockSignals(False)
-
-    def _toggle_manual(self) -> None:
-        visible = not self.manual_panel.isVisible()
-        self.manual_panel.setVisible(visible)
-        self.manual_toggle.setText("Masquer les cotes manuelles" if visible else "Saisir mes cotes")
-
-    def _clear_manual_odds(self) -> None:
-        for spin in self.manual_spins.values():
-            spin.blockSignals(True)
-            spin.setValue(0.0)
-            spin.blockSignals(False)
-
-    def _apply_manual_odds(self) -> None:
-        odds = {}
-        for key, spin in self.manual_spins.items():
-            if spin.value() > 1.01:
-                odds[key] = {"odd": round(spin.value(), 3), "bookmaker": "Manuel"}
-        if not odds:
-            self.value_banner.set_message("Saisissez au moins une cote superieure a 1.01.", "warning")
-            return
-        self.odds_source_label.setText("Cotes manuelles")
-        self._apply_odds(odds, "Cotes manuelles")
-
-    def _apply_odds(self, odds: dict[str, dict], source: str) -> None:
-        if not self.model:
-            self._pending_odds = odds
-            self.value_banner.set_message(
-                "Cotes memorisees. Le calcul sera effectue des que le modele sera pret.", "info"
+            self.odds_table.setItem(
+                row, 1, table_item(f"{item['odd']:.2f}", align_right=True, color=color)
             )
-            return
-        self.active_odds = odds
-        bets = value_bets(self.model["probabilities"], odds)
-        self._current_value_bets = bets
-        self._render_value_bets(bets, source)
-
-    def _render_value_bets(self, bets: list[dict], source: str) -> None:
-        self.value_table.setRowCount(0)
-        if not bets:
-            self.value_empty.setVisible(True)
-            self.value_table.setVisible(False)
-            self.value_badge.setText("AUCUNE COTE")
-            self.value_badge.set_kind("gray")
-            return
-        self.value_empty.setVisible(False)
-        self.value_table.setVisible(True)
-        recommended = [bet for bet in bets if bet["recommended"]]
-        best = max(bets, key=lambda bet: bet["edge"])
-        self.value_badge.setText(f"{len(recommended)} VALUE" if recommended else "PAS DE VALUE")
-        self.value_badge.set_kind("green" if recommended else "gray")
-        if recommended:
-            self.value_banner.set_message(
-                f"{len(recommended)} opportunite(s) positive(s) • meilleur edge : "
-                f"{best['label']} ({best['edge'] * 100:+.1f} pts). "
-                f"Cote juste du modele : {best['fair_odd']:.2f}.",
-                "success",
-            )
-        else:
-            self.value_banner.set_message(
-                "Aucune value positive avec ces cotes : le modele estime que le marche est "
-                "correctement precio ou plus prudent que lui.",
-                "info",
-            )
-
-        self.value_table.setRowCount(len(bets))
-        for row, bet in enumerate(bets):
-            label = bet["label"]
-            item = table_item(label, bold=bet["recommended"])
-            if bet["recommended"]:
-                item.setForeground(QColor(ACCENT))
-            self.value_table.setItem(row, 0, item)
-            self.value_table.setItem(row, 1, table_item(f"{bet['odd']:.2f}", align_right=True))
-            self.value_table.setItem(row, 2, table_item(bet.get("bookmaker") or "—", color=MUTED))
-            self.value_table.setItem(row, 3, table_item(_pct(bet["prob"]), align_right=True))
-            edge_color = ACCENT if bet["edge"] > 0 else RED
-            self.value_table.setItem(
-                row, 4, table_item(f"{bet['edge'] * 100:+.1f} pts", align_right=True, color=edge_color)
-            )
-            ev_color = ACCENT if bet["ev"] > 0 else RED
-            self.value_table.setItem(
-                row, 5, table_item(f"{bet['ev'] * 100:+.1f} %", align_right=True, color=ev_color)
-            )
-            self.value_table.setItem(
+            self.odds_table.setItem(row, 2, table_item(_pct(item["prob"]), align_right=True))
+            fair = item.get("fair_odd")
+            self.odds_table.setItem(
                 row,
-                6,
+                3,
                 table_item(
-                    f"{bet['fair_odd']:.2f}" if bet.get("fair_odd") is not None else "—",
+                    f"{fair:.2f}" if fair is not None else "—",
                     align_right=True,
                     color=MUTED,
                 ),
             )
-        self.odds_source_label.setText(source)
+            signal = str(item.get("signal") or "—")
+            self.odds_table.setItem(
+                row, 4, table_item(signal, color=ACCENT if highlight else TEXT_SOFT)
+            )
 
     # -------------------------------------------------------------- entete
 
@@ -878,8 +752,6 @@ class AnalysisPage(BasePage):
             load_image(label, url, 34)
 
     def _set_controls_enabled(self, enabled: bool) -> None:
-        self.odds_button.setEnabled(enabled)
-        self.fetch_odds_button.setEnabled(enabled)
         if not enabled:
             self.analysis_banner.set_message(
                 "Selectionnez un match dans la liste ou cliquez sur Analyser depuis la page Matchs.",

@@ -1,8 +1,8 @@
 # Betting Matrix
 
 Application desktop **PyQt6** d'analyse football en francais.
-Elle combine un modele de Poisson, des cotes et des value bets, **sans suivi de
-pronostics ni gestion de bankroll**.
+Elle combine un modele de Poisson et des cotes calculees par strategie, **sans
+suivi de pronostics ni gestion de bankroll**.
 
 L'application fonctionne avec des **sources de donnees gratuites** :
 football-data.co.uk, OpenFootball, OpenLigaDB et TheSportsDB. Aucune base de
@@ -14,7 +14,8 @@ reglages sont enregistres dans `data/settings.json`.
 - Tableau de bord : matchs a venir, ligues suivies, sources et cache session.
 - Matchs du jour, navigation par date et archive des saisons.
 - Analyse d'un match : probabilites 1X2, Over/Under 2.5, BTTS, scores exacts.
-- Value bets : edge, EV, cote minimale et niveau de confiance.
+- Cotes calculees : probabilites du modele converties en cotes selon la strategie
+  choisie dans `user_strategies/`.
 - Classements calcules a partir des resultats disponibles.
 - Cache en memoire des reponses des sources, sans SQLite ni fichier de cache.
 
@@ -76,8 +77,9 @@ Les saisons disponibles sont pilotees par `FREE_SEASONS`. Par defaut :
   UCL sont donc partiels, voire vides tant que des matchs ne sont pas termines.
 - La cle publique TheSportsDB est partagee et peut etre temporairement limitee.
   Les erreurs sont affichees comme avertissements, sans bloquer l'application.
-- Les matchs a venir des sources gratuites n'ont generalement **pas de cotes**.
-  Saisissez vos cotes manuellement dans la page Analyse.
+- Les cotes affichees dans la page Analyse sont **estimees par le modele**
+  (`1 / probabilite`, eventuellement ajuste par la strategie). Ce ne sont pas des
+  cotes de bookmaker et il n'y a plus de saisie manuelle ni de chargement de cotes.
 - Les donnees gratuites peuvent etre partielles, retardees ou absentes pour
   certaines journees. Le cache en memoire evite seulement les telechargements
   redondants pendant la session en cours.
@@ -101,10 +103,29 @@ python scripts/warmup.py --season 2025
 
 Le cache des scripts est conserve en memoire pendant leur execution.
 
+## Strategies de calcul des cotes
+
+La page **Analyse → Cotes calculees** utilise une strategie selectionnable.
+Deux strategies de base sont fournies dans `user_strategies/` :
+
+- `classic_edge.py` : cote juste `1 / probabilite`, sans marge (defaut).
+- `strict_value.py` : marches a au moins 45 % de probabilite, cote juste + 5 %
+  de marge, triees par cote decroissante.
+
+Vous pouvez ajouter vos propres fichiers `.py` dans ce dossier, **hors du package
+`football_betting_matrix`**. Chaque module expose `NAME`, `DESCRIPTION` et une
+fonction `evaluate(probabilities, context=None)` renvoyant une liste de cotes
+(`label`, `prob`, `odd` et champs optionnels). Le bouton **Recharger** relit le
+dossier sans redemarrer l'application, et le choix de la strategie est sauvegarde
+dans `data/settings.json`.
+
+Le contrat complet et un exemple minimal sont decrits dans
+`user_strategies/README.md`.
+
 ## Tests
 
 ```bash
-python -m compileall -q football_betting_matrix main.py scripts tests
+python -m compileall -q football_betting_matrix user_strategies main.py scripts tests
 python -m unittest discover -s tests -v
 ```
 
@@ -112,13 +133,17 @@ python -m unittest discover -s tests -v
 
 ```text
 football_betting_matrix/
-  analysis.py      Modele Poisson, cotes, value bets
+  analysis.py      Modele Poisson, cotes calculees
   config.py        Configuration et valeurs par defaut
   store.py         Cache memoire et reglages JSON
   errors.py        Exceptions des sources de donnees
   service.py       Orchestration et operations metier
   sources.py       Sources gratuites et normalisation
+  strategies.py    Chargement et validation des strategies
   ui/              Interface PyQt6
+user_strategies/     Strategies utilisateur (hors du coeur)
+  classic_edge.py    Cote juste (defaut)
+  strict_value.py    Cote prudente (marge +5 %)
 scripts/
   import_football_data.py
   warmup.py

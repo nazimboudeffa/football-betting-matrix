@@ -1,11 +1,11 @@
-"""Modele de prediction Poisson + detection de value bets.
+"""Modele de prediction Poisson + calcul des cotes du modele.
 
 Le modele est calcule localement a partir des resultats de la saison (cachee) :
 - force offensive / defensive de chaque equipe (domicile / exterieur),
 - avantage du terrain,
 - matrice de scores Poisson,
 - probabilites 1X2, Over/Under 2.5, BTTS et scores exacts,
-- comparaison aux cotes pour estimer edge et EV.
+- conversion des probabilites en cotes justes, ajustables par strategie.
 """
 
 from __future__ import annotations
@@ -370,40 +370,23 @@ def implied_probability(odd: float) -> float:
     return 1.0 / odd if odd > 1 else 0.0
 
 
-def value_bets(probabilities: dict, odds: dict[str, dict | float]) -> list[dict]:
-    """Compare les probabilites du modele aux cotes disponibles."""
+def model_odds(probabilities: dict) -> list[dict]:
+    """Convertit les probabilites du modele en cotes justes par marche."""
     results: list[dict] = []
     for key, label in MARKET_LABELS.items():
         prob = probabilities.get(key)
-        if prob is None:
+        if prob is None or prob <= 0:
             continue
-        raw = odds.get(key)
-        if isinstance(raw, dict):
-            odd = _odd(raw.get("odd"))
-            bookmaker = raw.get("bookmaker") or ""
-        else:
-            odd = _odd(raw)
-            bookmaker = ""
-        if odd is None:
-            continue
-        implied = implied_probability(odd)
-        ev = prob * odd - 1.0
-        edge = prob - implied
+        fair = round(1.0 / prob, 3)
         results.append(
             {
                 "key": key,
                 "label": label,
                 "prob": _round(prob),
-                "odd": round(odd, 3),
-                "bookmaker": bookmaker,
-                "implied": _round(implied),
-                "edge": _round(edge),
-                "ev": _round(ev),
-                "fair_odd": round(1.0 / prob, 2) if prob > 0 else None,
-                "recommended": ev > 0.02 and prob > 0.05,
+                "fair_odd": fair,
+                "odd": fair,
             }
         )
-    results.sort(key=lambda item: item["edge"], reverse=True)
     return results
 
 

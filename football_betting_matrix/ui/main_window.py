@@ -48,7 +48,7 @@ MONTHS = [
 PAGES = [
     ("dashboard", "Tableau de bord", "Vue d'ensemble des matchs, des sources et du cache"),
     ("matches", "Matchs", "Matchs, navigation par date et archive des saisons"),
-    ("analysis", "Analyse", "Probabilites du modele et detection de value bets"),
+    ("analysis", "Analyse", "Probabilites du modele et cotes calculees"),
     ("standings", "Classements", "Classements des competitions suivies"),
     ("leagues", "Ligues", "Gerez les competitions suivies"),
     ("settings", "Reglages", "Configuration, sources gratuites et cache"),
