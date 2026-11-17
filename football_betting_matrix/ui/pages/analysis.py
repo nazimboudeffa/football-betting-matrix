@@ -926,27 +926,27 @@ class AnalysisPage(BasePage):
             )
             return
 
-        strategies: list[dict] = []
-        for strategy in self.service.strategies.strategies:
+        selected_id = self.service.value_strategy_id()
+        strategy = self.service.strategies.get(selected_id)
+        selected_strategy: dict = {}
+        if strategy is not None:
             try:
                 rows = strategy.run(self.model["probabilities"])
             except Exception:  # une strategie utilisateur ne doit pas bloquer l'IA
                 rows = []
-            strategies.append(
-                {
-                    "id": strategy.id,
-                    "name": strategy.name,
-                    "description": strategy.description,
-                    "rows": rows,
-                }
-            )
+            selected_strategy = {
+                "id": strategy.id,
+                "name": strategy.name,
+                "description": strategy.description,
+                "rows": rows,
+            }
 
         payload = {
             "fixture": self.fixture,
             "model": self.model,
             "context": (self.model or {}).get("context") or {},
-            "selected_strategy": self.service.value_strategy_id(),
-            "strategies": strategies,
+            "selected_strategy": selected_id,
+            "strategie": selected_strategy,
         }
         standings = self._ai_standings_for_fixture(self.fixture)
         if standings is not None:

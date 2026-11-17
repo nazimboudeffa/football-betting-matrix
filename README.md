@@ -31,9 +31,9 @@ l'application.
   estimees par la strategie) a gauche et « Cotes marche » a droite, avec les
   tableaux 1X2 et Over/Under 2.5 (ouverture, cloture, Pinnacle, consensus et
   meilleur prix).
-- Analyse IA : envoi du prompt, des donnees du match, du modele, du classement
-  de la ligue et de toutes les strategies a une instance Ollama locale, avec
-  choix du modele.
+- Analyse IA : envoi du prompt, de toutes les donnees de l'analyse (match, xG,
+  statistiques, marche, arbitre, classement) et de la **seule strategie
+  selectionnee** a une instance Ollama locale, avec choix du modele.
 - Classement de la ligue affiche directement dans la page **Analyse**.
 - Cache en memoire des reponses des sources, sans SQLite ni fichier de cache.
 
@@ -151,7 +151,7 @@ Dans la page **Analyse**, le bouton **Analyser avec l'IA** ouvre une fenetre ave
 - un prompt modifiable ;
 - toutes les donnees de l'analyse (match, probabilites, scores, statistiques,
   metadonnees), les donnees du match (xG, statistiques, marche, arbitre) et les
-  cotes calculees par **chaque** strategie ;
+  cotes calculees par la **strategie selectionnee uniquement** ;
 - une liste deroulante des modeles installes, avec choix obligatoire du modele.
 
 Le clic sur **Analyser avec l'IA** dans cette fenetre envoie le prompt et le

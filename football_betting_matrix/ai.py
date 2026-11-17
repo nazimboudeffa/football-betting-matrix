@@ -17,8 +17,8 @@ from .errors import SourceError
 
 DEFAULT_PROMPT = (
     "Analyse ce match en te basant uniquement sur les donnees ci-dessous. "
-    "Decris les probabilites du modele, compare les cotes calculees par chaque "
-    "strategie avec les cotes de marche reelles, et utilise les xG, les "
+    "Decris les probabilites du modele, compare les cotes de la strategie "
+    "selectionnee avec les cotes de marche reelles, et utilise les xG, les "
     "statistiques de match et le profil de l'arbitre lorsqu'ils sont presents. "
     "Si le classement est present, utilise-le pour situer les equipes dans leur "
     "ligue. Souligne les limites des donnees et rappelle qu'aucun resultat "
@@ -76,19 +76,20 @@ def build_context(analysis: dict) -> str:
             "arbitre": (analysis.get("context") or {}).get("referee") or {},
         },
         "classement": analysis.get("standings") or {},
-        "strategies": [
+        "strategie": (
             {
-                "id": item.get("id"),
-                "nom": item.get("name"),
-                "description": item.get("description"),
-                "selectionnee": item.get("id") == selected,
-                "cotes": item.get("rows") or [],
+                "id": (analysis.get("strategie") or {}).get("id") or selected,
+                "nom": (analysis.get("strategie") or {}).get("name"),
+                "description": (analysis.get("strategie") or {}).get("description"),
+                "cotes": (analysis.get("strategie") or {}).get("rows") or [],
             }
-            for item in (analysis.get("strategies") or [])
-        ],
+            if (analysis.get("strategie") or selected)
+            else {}
+        ),
         "note": (
-            "Les cotes des strategies sont estimees par le modele, ce ne sont pas des "
-            "cotes de bookmaker. Les cotes de marche presentes dans 'marche' sont "
+            "Les cotes de la strategie selectionnee sont estimees par le modele, "
+            "ce ne sont pas des cotes de bookmaker. Les cotes de marche presentes "
+            "dans 'marche' sont "
             "elles issues du CSV et peuvent servir de reference. Les xG et statistiques "
             "sont absents des saisons anterieures a 2026-27. Le classement, lorsqu'il "
             "est present, est calcule a partir des resultats de la meme saison que le "

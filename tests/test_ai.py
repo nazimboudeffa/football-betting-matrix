@@ -23,7 +23,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(ai.normalize_url(""), DEFAULT_OLLAMA_URL)
         self.assertEqual(ai.normalize_url(None), DEFAULT_OLLAMA_URL)
 
-    def test_build_context_contains_match_model_and_all_strategies(self) -> None:
+    def test_build_context_contains_match_model_and_selected_strategy_only(self) -> None:
         payload = {
             "fixture": {
                 "id": 12,
@@ -68,20 +68,12 @@ class ContextTests(unittest.TestCase):
                 "fetched_at": 1760000000.0,
                 "warning": None,
             },
-            "strategies": [
-                {
-                    "id": "poisson",
-                    "name": "Poisson",
-                    "description": "Sans marge",
-                    "rows": [{"label": "Victoire domicile", "prob": 0.5, "odd": 2.0}],
-                },
-                {
-                    "id": "strict_value",
-                    "name": "Cote prudente",
-                    "description": "Avec marge",
-                    "rows": [{"label": "Victoire domicile", "prob": 0.5, "odd": 2.1}],
-                },
-            ],
+            "strategie": {
+                "id": "strict_value",
+                "name": "Cote prudente",
+                "description": "Avec marge",
+                "rows": [{"label": "Victoire domicile", "prob": 0.5, "odd": 2.1}],
+            },
         }
 
         context = ai.build_context(payload)
@@ -93,10 +85,9 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(data["donnees_match"]["xG"], {"home": 1.2, "away": 0.8})
         self.assertEqual(data["donnees_match"]["marche"]["reference"], "pinnacle")
         self.assertEqual(data["donnees_match"]["arbitre"]["name"], "Duval")
-        self.assertEqual(len(data["strategies"]), 2)
-        self.assertFalse(data["strategies"][0]["selectionnee"])
-        self.assertTrue(data["strategies"][1]["selectionnee"])
-        self.assertEqual(data["strategies"][1]["cotes"][0]["odd"], 2.1)
+        self.assertNotIn("strategies", data)
+        self.assertEqual(data["strategie"]["id"], "strict_value")
+        self.assertEqual(data["strategie"]["cotes"][0]["odd"], 2.1)
         self.assertEqual(data["classement"]["groups"][0]["rows"][0]["team"]["name"], "Lens")
         self.assertEqual(data["classement"]["league"]["season"], 2026)
         self.assertIn("pas des cotes de bookmaker", data["note"])
