@@ -43,6 +43,12 @@ class ContextTests(unittest.TestCase):
                 "_meta": {"cached": True},
             },
             "selected_strategy": "strict_value",
+            "context": {
+                "xg": {"home": 1.2, "away": 0.8},
+                "stats": {"corners": {"home": 6, "away": 3}},
+                "market": {"reference": "pinnacle", "margin": 0.05},
+                "referee": {"name": "Duval", "matches": 12},
+            },
             "standings": {
                 "league": {"id": 140, "name": "Ligue 1", "season": 2026},
                 "groups": [
@@ -84,6 +90,9 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(data["match"]["domicile"], "Lens")
         self.assertEqual(data["match"]["competition"], "Ligue 1")
         self.assertEqual(data["modele"]["probabilites"], {"home": 0.5})
+        self.assertEqual(data["donnees_match"]["xG"], {"home": 1.2, "away": 0.8})
+        self.assertEqual(data["donnees_match"]["marche"]["reference"], "pinnacle")
+        self.assertEqual(data["donnees_match"]["arbitre"]["name"], "Duval")
         self.assertEqual(len(data["strategies"]), 2)
         self.assertFalse(data["strategies"][0]["selectionnee"])
         self.assertTrue(data["strategies"][1]["selectionnee"])

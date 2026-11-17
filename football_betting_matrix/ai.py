@@ -18,9 +18,11 @@ from .errors import SourceError
 DEFAULT_PROMPT = (
     "Analyse ce match en te basant uniquement sur les donnees ci-dessous. "
     "Decris les probabilites du modele, compare les cotes calculees par chaque "
-    "strategie et, si le classement est present, utilise-le pour situer les "
-    "equipes dans leur ligue. Souligne les limites des donnees et rappelle "
-    "qu'aucun resultat n'est garanti. Ne donne pas de conseil de pari."
+    "strategie avec les cotes de marche reelles, et utilise les xG, les "
+    "statistiques de match et le profil de l'arbitre lorsqu'ils sont presents. "
+    "Si le classement est present, utilise-le pour situer les equipes dans leur "
+    "ligue. Souligne les limites des donnees et rappelle qu'aucun resultat "
+    "n'est garanti. Ne donne pas de conseil de pari."
 )
 LIST_TIMEOUT = 5.0
 ASK_TIMEOUT = 300.0
@@ -67,6 +69,12 @@ def build_context(analysis: dict) -> str:
             },
             "meta": model.get("_meta") or {},
         },
+        "donnees_match": {
+            "xG": (analysis.get("context") or {}).get("xg") or {},
+            "statistiques": (analysis.get("context") or {}).get("stats") or {},
+            "marche": (analysis.get("context") or {}).get("market") or {},
+            "arbitre": (analysis.get("context") or {}).get("referee") or {},
+        },
         "classement": analysis.get("standings") or {},
         "strategies": [
             {
@@ -79,10 +87,13 @@ def build_context(analysis: dict) -> str:
             for item in (analysis.get("strategies") or [])
         ],
         "note": (
-            "Les cotes affichees sont estimees par le modele, ce ne sont pas des "
-            "cotes de bookmaker. Le classement, lorsqu'il est present, est calcule "
-            "a partir des resultats de la meme saison que le modele : il ne constitue "
-            "pas une source d'information independante. Aucun resultat n'est garanti."
+            "Les cotes des strategies sont estimees par le modele, ce ne sont pas des "
+            "cotes de bookmaker. Les cotes de marche presentes dans 'marche' sont "
+            "elles issues du CSV et peuvent servir de reference. Les xG et statistiques "
+            "sont absents des saisons anterieures a 2026-27. Le classement, lorsqu'il "
+            "est present, est calcule a partir des resultats de la meme saison que le "
+            "modele : il ne constitue pas une source d'information independante. "
+            "Aucun resultat n'est garanti."
         ),
     }
     return json.dumps(payload, ensure_ascii=False, indent=2, default=str)

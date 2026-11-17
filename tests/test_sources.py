@@ -6,9 +6,11 @@ import unittest
 
 from datetime import date
 
+from football_betting_matrix.analysis import market_summary
 from football_betting_matrix.sources import (
     canonical_team_key,
     compute_standings_from_fixtures,
+    csv_url,
     free_source_supports,
     merge_fixtures,
     normalize_openfootball_match,
@@ -25,6 +27,10 @@ from football_betting_matrix.sources import (
 CSV_SAMPLE = """Div,Date,Time,HomeTeam,AwayTeam,FTHG,FTAG,FTR,B365H,B365D,B365A,B365>2.5,B365<2.5
 SP1,15/08/2026,18:30,Alaves,Getafe,3,0,H,2.35,2.80,3.75,2.42,1.55
 SP1,16/08/2026,21:00,Ath Madrid,Espanol,2,1,H,1.55,4.10,6.50,2.05,1.80
+"""
+
+ENRICHED_SAMPLE = """Div,Date,Time,HomeTeam,AwayTeam,FTHG,FTAG,HTHG,HTAG,HxG,AxG,HS,AS,HST,AST,HC,AC,HF,AF,HY,AY,HR,AR,Referee,B365H,B365D,B365A,B365CH,B365CD,B365CA,PCH,PCD,PCA,AvgCH,AvgCD,AvgCA,MaxCH,MaxCD,MaxCA,B365>2.5,B365C>2.5,PC>2.5,B365<2.5,B365C<2.5,AHh,B365AHH,B365AHA,AHCh,B365CAHH,B365CAHA
+F1,15/08/2026,19:45,Rennes,Marseille,1,0,0,0,0.85,1.42,12,24,5,2,4,12,8,11,2,3,0,0,Duval,3.50,3.60,2.05,3.30,3.55,2.10,3.20,3.50,2.15,3.35,3.55,2.12,3.45,3.60,2.20,1.88,1.91,1.86,1.98,2.05,0.5,1.80,2.05,0.25,1.95,1.90
 """
 
 
@@ -283,6 +289,33 @@ class MergeAndStandingsTests(unittest.TestCase):
         self.assertEqual(rows[0]["points"], 3)
         self.assertEqual(rows[0]["goalsDiff"], 3)
         self.assertEqual(rows[-1]["team"]["name"], "Getafe")
+
+
+class EnrichedCsvTests(unittest.TestCase):
+    def test_xg_stats_market_and_round_are_parsed(self) -> None:
+        items = parse_football_data_csv(ENRICHED_SAMPLE, 61, 2026)
+        self.assertEqual(len(items), 1)
+        item = items[0]
+        self.assertEqual(item["league"]["round"], "Journee 1")
+        self.assertEqual(item["xg"], {"home": 0.85, "away": 1.42})
+        self.assertEqual(item["stats"]["corners"], {"home": 4, "away": 12})
+        self.assertEqual(item["stats"]["halftime"], {"home": 0, "away": 0})
+        self.assertEqual(item["fixture"]["referee"], "Duval")
+        self.assertEqual(item["market"]["asian"]["line"], 0.25)
+        self.assertEqual(item["market"]["one_two_x"]["pinnacle"]["away"], 2.15)
+
+        summary = market_summary(item["market"])
+        self.assertEqual(summary["reference"], "pinnacle")
+        self.assertAlmostEqual(sum(summary["probabilities"].values()), 1.0, places=3)
+        self.assertIsNotNone(summary["margin"])
+        self.assertIn("home", summary["movement"])
+        self.assertEqual(summary["asian"]["home"], 1.95)
+
+    def test_additional_csv_leagues_are_supported(self) -> None:
+        for league_id, code in ((40, "E1"), (72, "N1"), (62, "F2"), (41, "SP2"),
+                                (32, "I2"), (79, "D2"), (88, "B1"), (94, "P1")):
+            self.assertTrue(free_source_supports(league_id, 2026))
+            self.assertTrue(csv_url(league_id, 2026).endswith(f"/{code}.csv"))
 
 
 if __name__ == "__main__":

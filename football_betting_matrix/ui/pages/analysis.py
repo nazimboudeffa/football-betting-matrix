@@ -52,6 +52,14 @@ def _pct(value: float | None) -> str:
     return f"{float(value) * 100:.1f} %"
 
 
+def _format_stat(value: object) -> str:
+    if value is None:
+        return "—"
+    if isinstance(value, float):
+        return f"{value:.2f}".rstrip("0").rstrip(".")
+    return str(value)
+
+
 class AnalysisPage(BasePage):
 
     def __init__(self, service: DataService, parent=None):
@@ -83,6 +91,7 @@ class AnalysisPage(BasePage):
         self.content_layout.addWidget(self._build_match_card())
         self.analysis_banner = Banner()
         self.content_layout.addWidget(self.analysis_banner)
+        self.content_layout.addWidget(self._build_data_card())
 
         columns = QHBoxLayout()
         columns.setSpacing(14)
@@ -209,6 +218,129 @@ class AnalysisPage(BasePage):
         layout.addLayout(right)
         card.add_layout(layout)
         return card
+
+    # --------------------------------------------------------- donnees du match
+
+    def _build_data_card(self) -> Card:
+        card = Card(
+            "Donnees du match",
+            "Statistiques, xG et cotes de marche fournies par football-data.co.uk",
+        )
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(6)
+        header_home = QLabel("Domicile")
+        header_home.setStyleSheet(f"color: {TEXT}; font-weight: 700;")
+        header_away = QLabel("Exterieur")
+        header_away.setStyleSheet(f"color: {TEXT}; font-weight: 700;")
+        grid.addWidget(QLabel(""), 0, 0)
+        grid.addWidget(header_home, 0, 1, Qt.AlignmentFlag.AlignRight)
+        grid.addWidget(header_away, 0, 2, Qt.AlignmentFlag.AlignRight)
+
+        self.data_values: dict[str, tuple[QLabel, QLabel]] = {}
+        rows = [
+            ("xg", "xG"),
+            ("halftime", "Score mi-temps"),
+            ("shots", "Tirs"),
+            ("shots_on_target", "Tirs cadres"),
+            ("corners", "Corners"),
+            ("yellow_cards", "Cartons jaunes"),
+            ("red_cards", "Cartons rouges"),
+        ]
+        for index, (key, label) in enumerate(rows, start=1):
+            grid.addWidget(QLabel(label), index, 0)
+            home_value = QLabel("—")
+            away_value = QLabel("—")
+            home_value.setAlignment(Qt.AlignmentFlag.AlignRight)
+            away_value.setAlignment(Qt.AlignmentFlag.AlignRight)
+            grid.addWidget(home_value, index, 1)
+            grid.addWidget(away_value, index, 2)
+            self.data_values[key] = (home_value, away_value)
+        card.add_layout(grid)
+
+        self.market_label = QLabel("Marche : —")
+        self.market_label.setObjectName("small")
+        self.market_label.setWordWrap(True)
+        card.add(self.market_label)
+        self.referee_label = QLabel("Arbitre : —")
+        self.referee_label.setObjectName("small")
+        self.referee_label.setWordWrap(True)
+        card.add(self.referee_label)
+        self.data_banner = Banner()
+        card.add(self.data_banner)
+        return card
+
+    def _set_data_values(self, values: dict[str, dict | None]) -> None:
+        for key, (home_label, away_label) in self.data_values.items():
+            side = values.get(key) or {}
+            home_label.setText(_format_stat(side.get("home")))
+            away_label.setText(_format_stat(side.get("away")))
+
+    def _reset_data(self) -> None:
+        self._set_data_values({})
+        self.market_label.setText("Marche : —")
+        self.referee_label.setText("Arbitre : —")
+        self.data_banner.set_message("")
+
+    def _render_data(self) -> None:
+        context = (self.model or {}).get("context") or {}
+        stats = dict(context.get("stats") or {})
+        xg = context.get("xg") or {}
+        stats["xg"] = xg
+        self._set_data_values(stats)
+
+        market = context.get("market") or {}
+        if market:
+            reference = market.get("reference") or "cloture"
+            probs = market.get("probabilities") or {}
+            closing = market.get("closing") or {}
+            opening = market.get("opening") or {}
+            asian = market.get("asian") or {}
+            parts = [f"Reference : {reference}"]
+            for key, label in (("home", "1"), ("draw", "N"), ("away", "2")):
+                if closing.get(key) is not None:
+                    part = f"{label} {closing[key]:.2f}"
+                    if opening.get(key) is not None:
+                        part += f" (ouv. {opening[key]:.2f})"
+                    if probs.get(key) is not None:
+                        part += f" · {_pct(probs[key])}"
+                    parts.append(part)
+            if asian.get("line") is not None:
+                handicap = asian["line"]
+                parts.append(
+                    f"AH {handicap:+.2f}"
+                    if handicap
+                    else f"AH {handicap:.2f}"
+                )
+            self.market_label.setText("Marche : " + " · ".join(parts))
+        else:
+            self.market_label.setText("Marche : cotes non disponibles dans le CSV.")
+
+        referee = context.get("referee") or {}
+        if referee:
+            details = []
+            for key, label in (
+                ("yellow_per_game", "cartons jaunes"),
+                ("red_per_game", "cartons rouges"),
+                ("fouls_per_game", "fautes"),
+            ):
+                if referee.get(key) is not None:
+                    details.append(f"{referee[key]:.2f} {label}/match")
+            self.referee_label.setText(
+                f"Arbitre : {referee.get('name') or '—'} · "
+                f"{referee.get('matches', 0)} matchs · " + ", ".join(details)
+            )
+        else:
+            self.referee_label.setText("Arbitre : historique indisponible.")
+
+        if not xg.get("home") and not xg.get("away"):
+            self.data_banner.set_message(
+                "xG non fournis pour cette saison : football-data.co.uk ne les "
+                "publie que depuis la saison 2026-27.",
+                "warning",
+            )
+        else:
+            self.data_banner.set_message("")
 
     # -------------------------------------------------------------- classement
 
@@ -641,6 +773,7 @@ class AnalysisPage(BasePage):
         payload = {
             "fixture": self.fixture,
             "model": self.model,
+            "context": (self.model or {}).get("context") or {},
             "selected_strategy": self.service.value_strategy_id(),
             "strategies": strategies,
         }
@@ -787,6 +920,7 @@ class AnalysisPage(BasePage):
         self.model = None
         self.analysis_banner.set_message("")
         self._reset_odds()
+        self._reset_data()
 
         league = fixture.get("league", {})
         league_id = league.get("id")
@@ -887,6 +1021,7 @@ class AnalysisPage(BasePage):
         self.fixture = fixture
         self.model = None
         self._reset_odds()
+        self._reset_data()
         self._render_header()
         self._set_controls_enabled(True)
         self._run_analysis()
@@ -914,6 +1049,7 @@ class AnalysisPage(BasePage):
         warning = (model.get("_meta") or {}).get("warning")
         self.analysis_banner.set_message(warning or "", "warning" if warning else "info")
         self._render_teams()
+        self._render_data()
         self._recompute_odds()
 
     def _on_analysis_error(self, code: str, message: str) -> None:
@@ -921,6 +1057,7 @@ class AnalysisPage(BasePage):
         self.analysis_banner.set_message(message, "error")
         self.model = None
         self._reset_odds()
+        self._reset_data()
 
     def _render_teams(self) -> None:
         if not self.model:

@@ -2,7 +2,8 @@
 
 Sources utilisees pour les saisons 2025 et 2026 :
 
-- football-data.co.uk (CSV) : resultats, cotes 1X2 et Over/Under 2.5.
+- football-data.co.uk (CSV) : resultats, cotes (ouverture/cloture), xG et
+  statistiques de match pour les saisons qui les fournissent.
 - OpenFootball (JSON GitHub) : calendriers La Liga, Premier League,
   Bundesliga, Serie A, Ligue 1.
 - OpenLigaDB (API publique) : calendrier et resultats Bundesliga.
@@ -45,6 +46,14 @@ CSV_LEAGUES = {
     78: {"code": "D1", "name": "Bundesliga", "country": "Germany"},
     135: {"code": "I1", "name": "Serie A", "country": "Italy"},
     61: {"code": "F1", "name": "Ligue 1", "country": "France"},
+    40: {"code": "E1", "name": "Championship", "country": "England"},
+    72: {"code": "N1", "name": "Eredivisie", "country": "Netherlands"},
+    62: {"code": "F2", "name": "Ligue 2", "country": "France"},
+    41: {"code": "SP2", "name": "La Liga 2", "country": "Spain"},
+    32: {"code": "I2", "name": "Serie B", "country": "Italy"},
+    79: {"code": "D2", "name": "2. Bundesliga", "country": "Germany"},
+    88: {"code": "B1", "name": "Jupiler Pro League", "country": "Belgium"},
+    94: {"code": "P1", "name": "Primeira Liga", "country": "Portugal"},
 }
 
 OPENFOOTBALL_FILES = {
@@ -64,11 +73,7 @@ TSDB_LEAGUES = {
 }
 
 FREE_LEAGUES = {
-    140: {"id": 140, "name": "La Liga", "country": "Spain"},
-    39: {"id": 39, "name": "Premier League", "country": "England"},
-    78: {"id": 78, "name": "Bundesliga", "country": "Germany"},
-    135: {"id": 135, "name": "Serie A", "country": "Italy"},
-    61: {"id": 61, "name": "Ligue 1", "country": "France"},
+    **{league_id: {"id": league_id, **info} for league_id, info in CSV_LEAGUES.items()},
     2: {"id": 2, "name": "UEFA Champions League", "country": "World"},
 }
 
@@ -374,10 +379,10 @@ def season_start_year(day: date) -> int:
 def free_source_supports(league_id: int, season: int) -> bool:
     """Indique si les sources gratuites couvrent cette ligue et cette saison.
 
-    La Liga, la Premier League, la Bundesliga, la Serie A et la Ligue 1 sont
-    couvertes par les CSV et/ou les calendriers OpenFootball. La Ligue des
-    Champions ne dispose que d'un calendrier partiel TheSportsDB pour la
-    saison en cours.
+    Toutes les ligues de ``CSV_LEAGUES`` sont couvertes par football-data.co.uk.
+    Les cinq ligues majeures disposent en plus d'un calendrier OpenFootball (et
+    OpenLigaDB pour la Bundesliga). La Ligue des Champions ne dispose que d'un
+    calendrier partiel TheSportsDB pour la saison en cours.
     """
     league_id = int(league_id)
     if (
@@ -443,6 +448,7 @@ def _to_int(value: Any) -> int | None:
 
 
 def _to_float(value: Any) -> float | None:
+    """Parse une cote : les valeurs <= 1 sont invalides pour une cote."""
     if value is None or str(value).strip() == "":
         return None
     try:
@@ -450,6 +456,17 @@ def _to_float(value: Any) -> float | None:
         return number if number > 1.0 else None
     except (TypeError, ValueError):
         return None
+
+
+def _to_number(value: Any) -> float | None:
+    """Parse une valeur numerique quelconque (xG, statistiques, handicap)."""
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        number = float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return number if number == number else None  # exclusion de NaN
 
 
 def _first_float(row: dict, *keys: str) -> float | None:
@@ -468,6 +485,71 @@ def _csv_odds(row: dict) -> dict:
         "over25": _first_float(row, "B365C>2.5", "B365>2.5", "AvgC>2.5", "Avg>2.5"),
         "under25": _first_float(row, "B365C<2.5", "B365<2.5", "AvgC<2.5", "Avg<2.5"),
     }
+
+
+def _csv_market(row: dict) -> dict:
+    """Regroupe les cotes brutes du CSV sans calculer de probabilite.
+
+    Les donnees sont separees par origine (ouverture, clôture, Pinnacle,
+    consensus, meilleur prix) pour que le coeur reste purement descriptif.
+    """
+    one_two_x = {
+        "opening": {
+            "home": _to_float(row.get("B365H")),
+            "draw": _to_float(row.get("B365D")),
+            "away": _to_float(row.get("B365A")),
+        },
+        "closing": {
+            "home": _to_float(row.get("B365CH")),
+            "draw": _to_float(row.get("B365CD")),
+            "away": _to_float(row.get("B365CA")),
+        },
+        "pinnacle": {
+            "home": _to_float(row.get("PCH")),
+            "draw": _to_float(row.get("PCD")),
+            "away": _to_float(row.get("PCA")),
+        },
+        "consensus": {
+            "home": _to_float(row.get("AvgCH")),
+            "draw": _to_float(row.get("AvgCD")),
+            "away": _to_float(row.get("AvgCA")),
+        },
+        "best": {
+            "home": _to_float(row.get("MaxCH")),
+            "draw": _to_float(row.get("MaxCD")),
+            "away": _to_float(row.get("MaxCA")),
+        },
+    }
+    totals = {
+        "opening": {
+            "over25": _to_float(row.get("B365>2.5")),
+            "under25": _to_float(row.get("B365<2.5")),
+        },
+        "closing": {
+            "over25": _to_float(row.get("B365C>2.5")),
+            "under25": _to_float(row.get("B365C<2.5")),
+        },
+        "pinnacle": {
+            "over25": _to_float(row.get("PC>2.5")),
+            "under25": _to_float(row.get("PC<2.5")),
+        },
+        "best": {
+            "over25": _to_float(row.get("MaxC>2.5")),
+            "under25": _to_float(row.get("MaxC<2.5")),
+        },
+    }
+    asian = {
+        "line": _to_number(row.get("AHCh")),
+        "home": _to_float(row.get("B365CAHH")),
+        "away": _to_float(row.get("B365CAHA")),
+    }
+    if asian["line"] is None:
+        asian["line"] = _to_number(row.get("AHh"))
+    if asian["home"] is None:
+        asian["home"] = _to_float(row.get("B365AHH"))
+    if asian["away"] is None:
+        asian["away"] = _to_float(row.get("B365AHA"))
+    return {"one_two_x": one_two_x, "totals": totals, "asian": asian}
 
 
 def _fixture_payload(
@@ -492,6 +574,9 @@ def _fixture_payload(
     referee: str | None = None,
     source: str,
     bookmaker_odds: dict | None = None,
+    xg: dict | None = None,
+    stats: dict | None = None,
+    market: dict | None = None,
 ) -> dict:
     winner = None
     if finished and home_goals is not None and away_goals is not None:
@@ -547,6 +632,9 @@ def _fixture_payload(
         "source": source,
         "sources": [source],
         "bookmaker_odds": bookmaker_odds or {},
+        "xg": xg or {},
+        "stats": stats or {},
+        "market": market or {},
     }
 
 
@@ -564,11 +652,31 @@ def _free_fixture_id(
     )
 
 
+def _csv_xg(row: dict) -> dict:
+    return {
+        "home": _to_number(row.get("HxG")),
+        "away": _to_number(row.get("AxG")),
+    }
+
+
+def _csv_match_stats(row: dict) -> dict:
+    return {
+        "halftime": {"home": _to_int(row.get("HTHG")), "away": _to_int(row.get("HTAG"))},
+        "shots": {"home": _to_int(row.get("HS")), "away": _to_int(row.get("AS"))},
+        "shots_on_target": {"home": _to_int(row.get("HST")), "away": _to_int(row.get("AST"))},
+        "corners": {"home": _to_int(row.get("HC")), "away": _to_int(row.get("AC"))},
+        "fouls": {"home": _to_int(row.get("HF")), "away": _to_int(row.get("AF"))},
+        "yellow_cards": {"home": _to_int(row.get("HY")), "away": _to_int(row.get("AY"))},
+        "red_cards": {"home": _to_int(row.get("HR")), "away": _to_int(row.get("AR"))},
+    }
+
+
 def parse_football_data_csv(text: str, league_id: int, season: int) -> list[dict]:
     """Transforme un CSV football-data.co.uk en fixtures normalisees."""
     info = CSV_LEAGUES.get(int(league_id), {"name": f"Ligue {league_id}", "country": ""})
     reader = csv.DictReader(io.StringIO(text))
     items: list[dict] = []
+    match_counts: dict[str, int] = {}
     for raw_row in reader:
         row = {(key or "").lstrip("\ufeff"): value for key, value in raw_row.items()}
         home_name = (row.get("HomeTeam") or "").strip()
@@ -576,6 +684,11 @@ def parse_football_data_csv(text: str, league_id: int, season: int) -> list[dict
         moment = _parse_csv_date(row.get("Date") or "", row.get("Time"))
         if not home_name or not away_name or moment is None:
             continue
+        home_key = canonical_team_key(home_name)
+        away_key = canonical_team_key(away_name)
+        round_number = max(match_counts.get(home_key, 0), match_counts.get(away_key, 0)) + 1
+        match_counts[home_key] = match_counts.get(home_key, 0) + 1
+        match_counts[away_key] = match_counts.get(away_key, 0) + 1
         home_goals = _to_int(row.get("FTHG"))
         away_goals = _to_int(row.get("FTAG"))
         finished = home_goals is not None and away_goals is not None
@@ -589,7 +702,7 @@ def parse_football_data_csv(text: str, league_id: int, season: int) -> list[dict
                 season=season,
                 league_name=info["name"],
                 country=info.get("country", ""),
-                round_label=(row.get("Div") or "").strip(),
+                round_label=f"Journee {round_number}",
                 home_name=home_name,
                 away_name=away_name,
                 home_goals=home_goals,
@@ -598,6 +711,9 @@ def parse_football_data_csv(text: str, league_id: int, season: int) -> list[dict
                 referee=(row.get("Referee") or "").strip() or None,
                 source=SOURCE_LABELS["csv"],
                 bookmaker_odds=_csv_odds(row),
+                xg=_csv_xg(row),
+                stats=_csv_match_stats(row),
+                market=_csv_market(row),
             )
         )
     items.sort(key=lambda item: item["fixture"].get("date") or "")
@@ -798,6 +914,14 @@ def _merge_pair(first: dict, second: dict) -> dict:
         if value is not None:
             odds[key] = value
     merged["bookmaker_odds"] = odds
+
+    for field in ("xg", "stats", "market"):
+        detail = dict(secondary.get(field) or {})
+        for key, value in (merged.get(field) or {}).items():
+            if value not in (None, {}, ""):
+                detail[key] = value
+        if detail:
+            merged[field] = detail
 
     sources: list[str] = []
     for item in (first, second):
@@ -1429,11 +1553,12 @@ class FreeSources:
         league_id = int(league_id)
         season = int(season)
         if not free_source_supports(league_id, season):
+            names = ", ".join(
+                sorted({info["name"] for info in FREE_LEAGUES.values()})
+            )
             raise SourceError(
                 f"Les sources gratuites ne couvrent pas la ligue {league_id} "
-                f"pour la saison {season}. Ligues couvertes : La Liga, "
-                "Premier League, Bundesliga, Serie A, Ligue 1 et Ligue des "
-                "Champions (saison en cours).",
+                f"pour la saison {season}. Ligues couvertes : {names}.",
                 "source",
             )
         groups: list[list[dict]] = []

@@ -9,11 +9,20 @@ football-data.co.uk, OpenFootball, OpenLigaDB et TheSportsDB. Aucune base de
 donnees n'est utilisee : les reponses sont gardees en cache memoire et les
 reglages sont enregistres dans `data/settings.json`.
 
+Le CSV football-data.co.uk est egalement utilise pour enrichir la page
+**Analyse** : xG, statistiques de match, cotes d'ouverture et de cloture,
+probabilites de marche sans marge et profil de l'arbitre. Ces donnees sont
+descriptives : aucun calcul de probabilite n'est ajoute au coeur de
+l'application.
+
 ## Fonctionnalites
 
 - Tableau de bord : matchs a venir, ligues suivies, sources et cache session.
 - Matchs du jour, navigation par date et archive des saisons.
 - Analyse d'un match : choix d'une strategie et affichage de ses cotes calculees.
+- Donnees du match : xG, tirs, tirs cadres, corners, cartons, score mi-temps,
+  cotes d'ouverture/cloture, probabilites de marche sans marge, handicap
+  asiatique et statistiques de l'arbitre.
 - Cotes calculees : chaque strategie de `user_strategies/` est un fichier autonome
   qui fournit son modele de probabilites et leur conversion en cotes.
 - Analyse IA : envoi du prompt, des donnees du match, du modele, du classement
@@ -43,8 +52,24 @@ Aucune cle API n'est necessaire pour demarrer.
 - **Ligue des Champions (2)** : TheSportsDB, calendrier partiel pour la saison
   en cours uniquement.
 
-Les ligues sont modifiables dans la page **Ligues**. La recherche et l'ajout
-sont limites a ces six competitions gratuites.
+### Ligues CSV supplementaires
+
+En plus de ces six competitions, la page **Ligues** permet d'ajouter les championnats
+suivants, fournis par football-data.co.uk :
+
+- **Championship (40)**, **Eredivisie (72)**, **Ligue 2 (62)**, **La Liga 2 (41)**,
+  **Serie B (32)**, **2. Bundesliga (79)**, **Jupiler Pro League (88)**,
+  **Primeira Liga (94)**.
+
+Ces ligues fournissent resultats, cotes, xG et statistiques pour les saisons
+configurees. Elles ne disposent pas de calendrier futur : elles sont donc
+utiles pour l'analyse et le backtest, mais pas pour les matchs a venir.
+
+Dans la page **Ligues**, la liste du haut contient les competitions suivies ;
+celle du bas affiche toutes les ligues gratuites non ajoutees. Cliquer sur
+**Ajouter** place la ligue en haut de la liste suivie ; cliquer sur **Retirer**
+la fait revenir en bas de la liste disponible. Aucune recherche par nom ou par
+ID : la liste est exhaustive et limitee aux competitions citees ci-dessus.
 
 ## Configuration
 
@@ -68,7 +93,7 @@ Les saisons disponibles sont pilotees par `FREE_SEASONS`. Par defaut :
 
 | Source | Usage | Remarques |
 | --- | --- | --- |
-| [football-data.co.uk](https://www.football-data.co.uk/) | Resultats et cotes CSV | La Liga, Premier League, Bundesliga, Serie A, Ligue 1 ; cotes 1X2, Over/Under 2.5 |
+| [football-data.co.uk](https://www.football-data.co.uk/) | Resultats, cotes, xG et statistiques | 13 championnats ; cotes d'ouverture/cloture, Over/Under 2.5, handicap asiatique, tirs, corners, cartons, xG depuis 2026-27 |
 | [OpenFootball](https://github.com/openfootball/football.json) | Calendriers JSON | La Liga, Premier League, Bundesliga, Serie A, Ligue 1 |
 | [OpenLigaDB](https://api.openligadb.de/) | Calendrier et resultats Bundesliga | Donnees ouvertes allemandes |
 | [TheSportsDB](https://www.thesportsdb.com/) | Calendrier Ligue des Champions (partiel) | Cle publique `123` fortement limitee |
@@ -80,9 +105,16 @@ Les saisons disponibles sont pilotees par `FREE_SEASONS`. Par defaut :
   UCL sont donc partiels, voire vides tant que des matchs ne sont pas termines.
 - La cle publique TheSportsDB est partagee et peut etre temporairement limitee.
   Les erreurs sont affichees comme avertissements, sans bloquer l'application.
-- Les cotes affichees dans la page Analyse sont **estimees par le modele**
-  (`1 / probabilite`, eventuellement ajuste par la strategie). Ce ne sont pas des
-  cotes de bookmaker et il n'y a plus de saisie manuelle ni de chargement de cotes.
+- Les xG ne sont publies par football-data.co.uk que depuis la **saison 2026-27** :
+  l'historique est donc court. Les saisons precedentes restent analysables avec
+  les buts et les autres statistiques.
+- Les ligues CSV supplementaires (Championship, Eredivisie, Ligue 2, etc.)
+  ne contiennent que des matchs deja joues : pas de calendrier futur, donc pas
+  de matchs du jour pour ces championnats.
+- Les cotes des strategies affichees dans la page Analyse sont **estimees par le
+  modele** (`1 / probabilite`, eventuellement ajuste par la strategie). Les cotes
+  presentes dans la section « Donnees du match » sont, elles, des cotes de marche
+  reelles issues du CSV. Il n'y a plus de saisie manuelle ni de chargement de cotes.
 - Les donnees gratuites peuvent etre partielles, retardees ou absentes pour
   certaines journees. Le cache en memoire evite seulement les telechargements
   redondants pendant la session en cours.
@@ -112,7 +144,8 @@ Dans la page **Analyse**, le bouton **Analyser avec l'IA** ouvre une fenetre ave
 
 - un prompt modifiable ;
 - toutes les donnees de l'analyse (match, probabilites, scores, statistiques,
-  metadonnees) et les cotes calculees par **chaque** strategie ;
+  metadonnees), les donnees du match (xG, statistiques, marche, arbitre) et les
+  cotes calculees par **chaque** strategie ;
 - une liste deroulante des modeles installes, avec choix obligatoire du modele.
 
 Le clic sur **Analyser avec l'IA** dans cette fenetre envoie le prompt et le

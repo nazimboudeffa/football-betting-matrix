@@ -5,7 +5,8 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import Any, Callable
 
-from .config import DEFAULT_OLLAMA_URL, DEFAULT_SETTINGS, Config
+from .analysis import market_summary
+from .config import DEFAULT_LEAGUES, DEFAULT_OLLAMA_URL, DEFAULT_SETTINGS, Config
 from .errors import SourceError
 from .sources import (
     FREE_LEAGUES,
@@ -94,6 +95,9 @@ def normalize_fixture(raw: dict) -> dict:
         "source": source,
         "sources": sources,
         "bookmaker_odds": raw.get("bookmaker_odds") or {},
+        "xg": raw.get("xg") or {},
+        "stats": raw.get("stats") or {},
+        "market": raw.get("market") or {},
         "raw": raw,
     }
 
@@ -117,6 +121,26 @@ def normalize_standing_row(row: dict) -> dict:
         "home": row.get("home") or {},
         "away": row.get("away") or {},
     }
+
+
+def available_leagues_text() -> str:
+    """Liste des ligues couvertes, construite depuis les sources gratuites."""
+    return ", ".join(
+        f"{info['name']} ({league_id})"
+        for league_id, info in sorted(
+            FREE_LEAGUES.items(), key=lambda item: item[1]["name"]
+        )
+    )
+
+
+def _sorted_league_ids() -> list[int]:
+    return [
+        int(league_id)
+        for league_id, _ in sorted(
+            FREE_LEAGUES.items(),
+            key=lambda item: (item[1]["country"], item[1]["name"]),
+        )
+    ]
 
 
 def _free_meta(result: dict) -> dict:
@@ -190,22 +214,51 @@ class DataService:
     def tracked_leagues(self) -> list[dict]:
         return list(self.settings().get("tracked_leagues") or [])
 
+    def _available_order(self) -> list[int]:
+        """Ordre des ligues non suivies (les plus recentes retirees en fin)."""
+        settings = self.settings()
+        stored = [int(value) for value in settings.get("available_league_order") or []]
+        order = [lid for lid in stored if lid in FREE_LEAGUES]
+        for league_id in _sorted_league_ids():
+            if league_id not in order:
+                order.append(league_id)
+        return order
+
+    def available_leagues(self) -> list[dict]:
+        """Ligues couvertes qui ne sont pas encore suivies."""
+        tracked = {int(league.get("id", -1)) for league in self.tracked_leagues()}
+        leagues: list[dict] = []
+        for league_id in self._available_order():
+            if league_id in tracked:
+                continue
+            info = FREE_LEAGUES[league_id]
+            leagues.append(
+                {
+                    "id": league_id,
+                    "name": info.get("name") or f"Ligue {league_id}",
+                    "country": info.get("country") or "",
+                    "logo": "",
+                    "flag": "",
+                    "type": "League",
+                }
+            )
+        return leagues
+
     def add_league(self, league: dict) -> list[dict]:
         league_id = int(league.get("id", -1))
         info = FREE_LEAGUES.get(league_id)
         if not info:
             raise SourceError(
                 "Cette ligue n'est pas couverte par les sources gratuites. "
-                "Ligues disponibles : La Liga (140), Premier League (39), "
-                "Bundesliga (78), Serie A (135), Ligue 1 (61), Ligue des "
-                "Champions (2).",
+                f"Ligues disponibles : {available_leagues_text()}.",
                 "source",
             )
         settings = self.settings()
         leagues = settings.get("tracked_leagues") or []
         if any(int(existing.get("id", -1)) == league_id for existing in leagues):
             return leagues
-        leagues.append(
+        leagues.insert(
+            0,
             {
                 "id": league_id,
                 "name": info.get("name") or f"Ligue {league_id}",
@@ -213,19 +266,38 @@ class DataService:
                 "logo": "",
                 "flag": "",
                 "default": False,
-            }
+            },
         )
+        order = self._available_order()
+        settings["available_league_order"] = [
+            lid for lid in order if lid != league_id
+        ]
         settings["tracked_leagues"] = leagues
         self.save_settings(settings)
         return leagues
 
     def remove_league(self, league_id: int) -> list[dict]:
         settings = self.settings()
-        settings["tracked_leagues"] = [
+        before = settings.get("tracked_leagues") or []
+        after = [
             league
-            for league in (settings.get("tracked_leagues") or [])
+            for league in before
             if int(league.get("id", -1)) != int(league_id)
         ]
+        if len(after) != len(before):
+            order = [
+                lid for lid in self._available_order() if lid != int(league_id)
+            ]
+            order.append(int(league_id))
+            settings["available_league_order"] = order
+        settings["tracked_leagues"] = after
+        self.save_settings(settings)
+        return after
+
+    def restore_default_leagues(self) -> list[dict]:
+        settings = self.settings()
+        settings["tracked_leagues"] = [dict(league) for league in DEFAULT_LEAGUES]
+        settings["available_league_order"] = _sorted_league_ids()
         self.save_settings(settings)
         return settings["tracked_leagues"]
 
@@ -385,10 +457,7 @@ class DataService:
         info = FREE_LEAGUES.get(int(league_id))
         if not info:
             raise SourceError(
-                "Les sources gratuites couvrent uniquement La Liga (140), "
-                "Premier League (39), Bundesliga (78), Serie A (135), "
-                "Ligue 1 (61) et la Ligue des Champions (2, calendrier "
-                "partiel).",
+                f"Les sources gratuites couvrent : {available_leagues_text()}.",
                 "source",
             )
         return {
@@ -403,6 +472,47 @@ class DataService:
         }
 
     # --------------------------------------------------------------- analyse
+
+    @staticmethod
+    def _referee_profile(
+        fixtures: list[dict], referee: str | None, before_date: str | None = None
+    ) -> dict | None:
+        """Statistiques descriptives d'un arbitre sur les matchs deja joues."""
+        name = (referee or "").strip().casefold()
+        if not name:
+            return None
+        matches: list[dict] = []
+        for item in fixtures:
+            if (item.get("referee") or "").strip().casefold() != name:
+                continue
+            if before_date:
+                day = (item.get("date") or "")[:10]
+                if day and day >= before_date:
+                    continue
+            stats = item.get("stats") or {}
+            if stats:
+                matches.append(stats)
+        if not matches:
+            return None
+
+        def average(field: str) -> float | None:
+            values: list[float] = []
+            for stats in matches:
+                side = stats.get(field) or {}
+                home = side.get("home")
+                away = side.get("away")
+                if home is None and away is None:
+                    continue
+                values.append(float(home or 0) + float(away or 0))
+            return round(sum(values) / len(values), 2) if values else None
+
+        return {
+            "name": referee.strip(),
+            "matches": len(matches),
+            "yellow_per_game": average("yellow_cards"),
+            "red_per_game": average("red_cards"),
+            "fouls_per_game": average("fouls"),
+        }
 
     def analyze_fixture(self, fixture: dict, season: int, force: bool = False) -> dict:
         league_id = int(fixture["league"]["id"])
@@ -438,6 +548,14 @@ class DataService:
         model["league_id"] = league_id
         model["season"] = season
         model["fixture"] = fixture
+        model["context"] = {
+            "xg": fixture.get("xg") or {},
+            "stats": fixture.get("stats") or {},
+            "market": market_summary(fixture.get("market") or {}),
+            "referee": self._referee_profile(
+                fixtures, fixture.get("referee"), before_date
+            ),
+        }
         model["_meta"] = {
             k: season_data.get(k)
             for k in ("cached", "stale", "warning", "fetched_at", "source", "sources")
