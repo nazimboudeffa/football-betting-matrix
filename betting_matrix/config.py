@@ -129,7 +129,7 @@ DEFAULT_SETTINGS: dict = {
 class Config:
     root_dir: Path
     data_dir: Path
-    db_path: Path
+    settings_path: Path
     timezone: str = "Europe/Paris"
     seasons: tuple[int, ...] = FREE_SEASONS
     default_season: int = DEFAULT_SEASON
@@ -152,7 +152,7 @@ def load_config() -> Config:
     return Config(
         root_dir=ROOT_DIR,
         data_dir=data_dir,
-        db_path=data_dir / "betting_matrix.db",
+        settings_path=data_dir / "settings.json",
         timezone=os.getenv("APP_TIMEZONE", "Europe/Paris").strip() or "Europe/Paris",
         seasons=FREE_SEASONS,
         default_season=DEFAULT_SEASON,
@@ -166,7 +166,7 @@ APP_NAME = "Betting Matrix"
 APP_VERSION = "1.0.0"
 
 DISCLAIMER = (
-    "Betting Matrix est un outil d'analyse statistique et de suivi de pronostics. "
+    "Betting Matrix est un outil d'analyse statistique football. "
     "Les probabilites affichees ne constituent pas des conseils de pari ni une garantie "
     "de resultat. L'application utilise uniquement des sources gratuites sans cle "
     "personnelle (football-data.co.uk, OpenFootball, OpenLigaDB, TheSportsDB) ; "

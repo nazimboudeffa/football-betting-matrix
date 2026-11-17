@@ -1,4 +1,4 @@
-"""Betting Matrix - analyse football et suivi de pronostics (PyQt6)."""
+"""Betting Matrix - analyse football et value bets (PyQt6)."""
 
 from .config import APP_NAME, APP_VERSION
 

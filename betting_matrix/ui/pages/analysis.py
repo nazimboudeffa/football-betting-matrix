@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QComboBox,
-    QDialog,
     QDoubleSpinBox,
     QGridLayout,
     QHBoxLayout,
@@ -37,7 +36,6 @@ from ...theme import (
 )
 from ..base import BasePage
 from ..common import configure_table, populate_leagues, populate_seasons
-from ..dialogs import PredictionDialog
 from ..widgets import (
     Badge,
     Banner,
@@ -46,20 +44,9 @@ from ..widgets import (
     InfoRow,
     LogoLabel,
     ProbabilityBar,
-    SmallButton,
     make_mono_label,
     table_item,
 )
-
-VALUE_TO_BET = {
-    "home": ("1X2", "Victoire domicile"),
-    "draw": ("1X2", "Match nul"),
-    "away": ("1X2", "Victoire exterieur"),
-    "over25": ("OU25", "Plus de 2.5 buts"),
-    "under25": ("OU25", "Moins de 2.5 buts"),
-    "btts_yes": ("BTTS", "Les deux equipes marquent : Oui"),
-    "btts_no": ("BTTS", "Les deux equipes marquent : Non"),
-}
 
 
 def _pct(value: float | None) -> str:
@@ -69,7 +56,6 @@ def _pct(value: float | None) -> str:
 
 
 class AnalysisPage(BasePage):
-    predictions_changed = pyqtSignal()
 
     def __init__(self, service: DataService, parent=None):
         super().__init__(service, parent)
@@ -219,10 +205,6 @@ class AnalysisPage(BasePage):
         )
         self.odds_button.clicked.connect(lambda: self.load_odds())
         buttons.addWidget(self.odds_button)
-        self.bet_button = QPushButton("Suivre ce pronostic")
-        self.bet_button.setObjectName("primary")
-        self.bet_button.clicked.connect(self._open_prediction)
-        buttons.addWidget(self.bet_button)
         right.addLayout(buttons)
         layout.addLayout(right)
         card.add_layout(layout)
@@ -316,7 +298,7 @@ class AnalysisPage(BasePage):
         self.value_table = QTableWidget()
         configure_table(
             self.value_table,
-            ["Marche", "Cote", "Book", "Proba", "Edge", "EV", "Cote juste", ""],
+            ["Marche", "Cote", "Book", "Proba", "Edge", "EV", "Cote juste"],
             stretch_columns=[0],
             row_height=36,
         )
@@ -847,13 +829,6 @@ class AnalysisPage(BasePage):
                     color=MUTED,
                 ),
             )
-            action = SmallButton("Suivre", primary=bet["recommended"])
-            action.clicked.connect(lambda _checked=False, b=bet: self._open_value_bet(b))
-            wrapper = QWidget()
-            wrap_layout = QHBoxLayout(wrapper)
-            wrap_layout.setContentsMargins(0, 0, 0, 0)
-            wrap_layout.addWidget(action)
-            self.value_table.setCellWidget(row, 7, wrapper)
         self.odds_source_label.setText(source)
 
     # -------------------------------------------------------------- entete
@@ -904,60 +879,12 @@ class AnalysisPage(BasePage):
 
     def _set_controls_enabled(self, enabled: bool) -> None:
         self.odds_button.setEnabled(enabled)
-        self.bet_button.setEnabled(enabled)
         self.fetch_odds_button.setEnabled(enabled)
         if not enabled:
             self.analysis_banner.set_message(
                 "Selectionnez un match dans la liste ou cliquez sur Analyser depuis la page Matchs.",
                 "info",
             )
-
-    # -------------------------------------------------------------- pronostic
-
-    def _open_value_bet(self, bet: dict) -> None:
-        if not self.fixture or not self.model:
-            return
-        market, selection = VALUE_TO_BET.get(bet["key"], ("1X2", bet["label"]))
-        self._open_prediction(
-            market=market,
-            selection=selection,
-            odds=bet["odd"],
-            model_prob=bet["prob"],
-            edge=bet["edge"],
-        )
-
-    def _open_prediction(
-        self,
-        market: str = "1X2",
-        selection: str | None = None,
-        odds: float | None = None,
-        model_prob: float | None = None,
-        edge: float | None = None,
-    ) -> None:
-        if not self.fixture:
-            return
-        fixture = self.fixture
-        prefill = {
-            "fixture_id": fixture.get("id"),
-            "league_id": fixture["league"].get("id"),
-            "league_name": fixture["league"].get("name"),
-            "home": fixture["home"].get("name"),
-            "away": fixture["away"].get("name"),
-            "kickoff": fixture.get("date"),
-            "match_label": f"{fixture['home'].get('name')} — {fixture['away'].get('name')}",
-            "market": market,
-            "selection": selection,
-            "odds": odds,
-            "model_prob": model_prob,
-            "edge": edge,
-        }
-        dialog = PredictionDialog(self.service, prefill, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            prediction = dialog.get_prediction()
-            self.service.db.add_prediction(prediction)
-            odd_text = f" @ {prediction['odds']:.2f}" if prediction.get("odds") else ""
-            self.toast.emit(f"Pronostic enregistre : {prediction['selection']}{odd_text}")
-            self.predictions_changed.emit()
 
     # ----------------------------------------------------------------- utils
 

@@ -13,8 +13,8 @@ from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication
 
 from betting_matrix.config import APP_NAME, APP_VERSION, load_config
-from betting_matrix.db import Database
 from betting_matrix.service import DataService
+from betting_matrix.store import JsonSettingsStore, MemoryCache
 from betting_matrix.theme import STYLESHEET
 from betting_matrix.ui.main_window import MainWindow
 
@@ -67,8 +67,9 @@ def main() -> int:
     app.setWindowIcon(_app_icon())
 
     config = load_config()
-    db = Database(config.db_path)
-    service = DataService(config, db)
+    cache = MemoryCache()
+    settings = JsonSettingsStore(config.settings_path)
+    service = DataService(config, cache, settings)
 
     window = MainWindow(service)
     window.show()
@@ -76,12 +77,8 @@ def main() -> int:
     try:
         return app.exec()
     finally:
-        # Laisse aux workers le temps de terminer proprement avant de fermer SQLite.
+        # Laisse aux workers le temps de terminer proprement avant la fermeture.
         QThreadPool.globalInstance().waitForDone(3000)
-        try:
-            db.close()
-        except Exception:
-            pass
 
 
 if __name__ == "__main__":

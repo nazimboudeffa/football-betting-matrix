@@ -1,22 +1,22 @@
 # Betting Matrix
 
-Application desktop **PyQt6** d'analyse football et de suivi de pronostics, en francais.
-Elle combine un modele de Poisson, des cotes, des value bets et un historique de
-pronostics — **sans gestion de bankroll ni montants en euros**.
+Application desktop **PyQt6** d'analyse football en francais.
+Elle combine un modele de Poisson, des cotes et des value bets, **sans suivi de
+pronostics ni gestion de bankroll**.
 
-L'application fonctionne uniquement avec des **sources gratuites sans cle API
-personnelle** : football-data.co.uk, OpenFootball, OpenLigaDB et TheSportsDB.
+L'application fonctionne avec des **sources de donnees gratuites** :
+football-data.co.uk, OpenFootball, OpenLigaDB et TheSportsDB. Aucune base de
+donnees n'est utilisee : les reponses sont gardees en cache memoire et les
+reglages sont enregistres dans `data/settings.json`.
 
 ## Fonctionnalites
 
-- Tableau de bord : pronostics suivis, matchs a venir, sources et cache.
+- Tableau de bord : matchs a venir, ligues suivies, sources et cache session.
 - Matchs du jour, navigation par date et archive des saisons.
 - Analyse d'un match : probabilites 1X2, Over/Under 2.5, BTTS, scores exacts.
 - Value bets : edge, EV, cote minimale et niveau de confiance.
-- Pronostics purs : selection, probabilite du modele, cote au moment du pronostic,
-  resultat, taux de reussite. Aucun montant, aucune mise.
 - Classements calcules a partir des resultats disponibles.
-- Cache SQLite persistant : l'application reste utilisable meme sans reseau.
+- Cache en memoire des reponses des sources, sans SQLite ni fichier de cache.
 
 ## Installation
 
@@ -79,12 +79,12 @@ Les saisons disponibles sont pilotees par `FREE_SEASONS`. Par defaut :
 - Les matchs a venir des sources gratuites n'ont generalement **pas de cotes**.
   Saisissez vos cotes manuellement dans la page Analyse.
 - Les donnees gratuites peuvent etre partielles, retardees ou absentes pour
-  certaines journees. Le cache local permet de consulter les dernieres donnees
-  telechargees.
+  certaines journees. Le cache en memoire evite seulement les telechargements
+  redondants pendant la session en cours.
 
 ## Scripts utiles
 
-Importer les CSV gratuits dans le cache local :
+Importer les CSV gratuits dans le cache memoire :
 
 ```bash
 python scripts/import_football_data.py
@@ -99,7 +99,7 @@ python scripts/warmup.py --seasons 2026,2025
 python scripts/warmup.py --season 2025
 ```
 
-Les scripts sont interruptibles : les reponses deja recues restent en cache.
+Le cache des scripts est conserve en memoire pendant leur execution.
 
 ## Tests
 
@@ -114,7 +114,7 @@ python -m unittest discover -s tests -v
 betting_matrix/
   analysis.py      Modele Poisson, cotes, value bets
   config.py        Configuration et valeurs par defaut
-  db.py            SQLite : cache, reglages, pronostics
+  store.py         Cache memoire et reglages JSON
   errors.py        Exceptions des sources de donnees
   service.py       Orchestration et operations metier
   sources.py       Sources gratuites et normalisation
@@ -127,7 +127,7 @@ tests/
 
 ## Avertissement
 
-Betting Matrix est un outil d'analyse statistique et de suivi de pronostics.
+Betting Matrix est un outil d'analyse statistique football.
 Les probabilites affichees ne constituent pas des conseils de pari ni une
 garantie de resultat. Les donnees gratuites peuvent etre partielles ou
 retardees. Jouez de facon responsable et ne misez jamais plus que ce que vous

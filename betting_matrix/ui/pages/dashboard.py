@@ -1,4 +1,4 @@
-"""Tableau de bord : pronostics suivis, matchs a venir, sources et cache."""
+"""Tableau de bord : matchs a venir, sources et cache en memoire."""
 
 from __future__ import annotations
 
@@ -10,26 +10,15 @@ from PyQt6.QtWidgets import (
     QLabel,
     QPushButton,
     QScrollArea,
-    QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from ...service import DataService
-from ...theme import ACCENT, AMBER, BLUE, MUTED, RED, TEXT, TEXT_SOFT
+from ...theme import ACCENT, BLUE, MUTED, TEXT, TEXT_SOFT
 from ..base import BasePage
-from ..common import configure_table, score_text, status_badge
-from ..widgets import (
-    Badge,
-    Banner,
-    Card,
-    EmptyState,
-    LogoLabel,
-    SmallButton,
-    StatCard,
-    table_item,
-)
+from ..common import score_text, status_badge
+from ..widgets import Badge, Banner, Card, EmptyState, LogoLabel, SmallButton, StatCard
 
 
 class DashboardPage(BasePage):
@@ -56,19 +45,15 @@ class DashboardPage(BasePage):
 
         stats_row = QHBoxLayout()
         stats_row.setSpacing(10)
-        self.card_total = StatCard("Pronostics", "—", "Suivis localement", ACCENT, "▦")
-        self.card_pending = StatCard("En attente", "—", "Resultat a renseigner", AMBER, "◷")
-        self.card_winrate = StatCard("Reussite", "—", "Gagnes / decides", BLUE, "✓")
-        self.card_edge = StatCard("Edge moyen", "—", "Modele face aux cotes", ACCENT, "↗")
-        for card in (self.card_total, self.card_pending, self.card_winrate, self.card_edge):
+        self.card_leagues = StatCard("Ligues suivies", "—", "Competitions surveillees", ACCENT, "▦")
+        self.card_season = StatCard("Saison", "—", "Reference du modele", BLUE, "◷")
+        self.card_matches = StatCard("Matchs du jour", "—", "Dans vos ligues", ACCENT, "✓")
+        self.card_cache = StatCard("Cache session", "—", "Reponses en memoire", BLUE, "↗")
+        for card in (self.card_leagues, self.card_season, self.card_matches, self.card_cache):
             stats_row.addWidget(card, 1)
         layout.addLayout(stats_row)
 
-        main_row = QHBoxLayout()
-        main_row.setSpacing(14)
-        main_row.addWidget(self._build_matches_card(), 2)
-        main_row.addWidget(self._build_predictions_card(), 1)
-        layout.addLayout(main_row)
+        layout.addWidget(self._build_matches_card())
 
         bottom_row = QHBoxLayout()
         bottom_row.setSpacing(14)
@@ -80,7 +65,6 @@ class DashboardPage(BasePage):
 
         self.refresh_stats()
         self.refresh_cache()
-        self.refresh_predictions()
 
     # ------------------------------------------------------------------- UI
 
@@ -114,29 +98,6 @@ class DashboardPage(BasePage):
         card.add_layout(footer)
         return card
 
-    def _build_predictions_card(self) -> Card:
-        card = Card("Derniers pronostics", "Suivi local, sans mise ni bankroll")
-        view_all = QPushButton("Tout voir")
-        view_all.setObjectName("ghost")
-        view_all.clicked.connect(lambda: self.navigate.emit("predictions", None))
-        card.add_header_widget(view_all)
-
-        self.predictions_table = QTableWidget()
-        configure_table(
-            self.predictions_table,
-            ["Match", "Selection", "Cote", "Statut"],
-            stretch_columns=[0],
-            row_height=38,
-        )
-        self.predictions_table.setMinimumHeight(250)
-        card.add(self.predictions_table)
-        self.predictions_empty = QLabel("Aucun pronostic enregistre pour le moment.")
-        self.predictions_empty.setObjectName("small")
-        self.predictions_empty.setWordWrap(True)
-        self.predictions_empty.setVisible(False)
-        card.add(self.predictions_empty)
-        return card
-
     def _build_sources_card(self) -> Card:
         card = Card("Sources gratuites", "Aucune cle API personnelle requise")
         text = QLabel(
@@ -154,8 +115,8 @@ class DashboardPage(BasePage):
 
     def _build_cache_card(self) -> Card:
         card = Card(
-            "Cache persistant",
-            "Donnees gratuites conservees entre les sessions",
+            "Cache session",
+            "Reponses des sources gardees en memoire",
         )
         self.cache_value = QLabel("—")
         self.cache_value.setObjectName("valueMedium")
@@ -170,7 +131,7 @@ class DashboardPage(BasePage):
         return card
 
     def _build_responsible_card(self) -> Card:
-        card = Card("Analyse responsable", "Outil de pronostics, pas de gestion de capital")
+        card = Card("Analyse responsable", "Outil d'analyse, pas de gestion de capital")
         text = QLabel(
             "L'application ne suit ni bankroll ni mises. Les probabilites du modele sont "
             "informatives et ne garantissent aucun resultat."
@@ -187,7 +148,6 @@ class DashboardPage(BasePage):
 
     def on_show(self) -> None:
         self.refresh_stats()
-        self.refresh_predictions()
         self.refresh_cache()
         if self._loaded_day != date.today():
             self._fixtures_loaded = False
@@ -247,6 +207,7 @@ class DashboardPage(BasePage):
 
     def _render_matches(self) -> None:
         self._clear_matches()
+        self.refresh_stats()
         items = self._fixtures[:6]
         self.matches_badge.setText(f"{len(self._fixtures)} MATCH(S)")
         self.matches_badge.set_kind("green" if self._fixtures else "gray")
@@ -368,66 +329,23 @@ class DashboardPage(BasePage):
     # ---------------------------------------------------------------- stats
 
     def refresh_stats(self) -> None:
-        stats = self.service.prediction_stats()
-        self.card_total.set_value(
-            str(stats["total"]),
-            f"{stats['settled']} regle(s) • {stats['value_count']} edge positif",
+        cache = self.service.cache_stats()
+        self.card_leagues.set_value(
+            str(len(self.service.tracked_leagues())), "Competitions surveillees"
         )
-        self.card_pending.set_value(
-            str(stats["pending"]),
-            "Resultat a renseigner",
+        self.card_season.set_value(
+            str(self.service.config.default_season), "Saison de reference"
         )
-        self.card_winrate.set_value(
-            f"{stats['win_rate'] * 100:.0f} %",
-            f"{stats['won']} gagne(s) / {stats['lost']} perdu(s)",
+        self.card_matches.set_value(
+            str(len(self._fixtures)), "Aujourd'hui dans vos ligues"
         )
-        average_edge = stats["average_edge"] * 100
-        self.card_edge.set_value(
-            f"{average_edge:+.1f} %",
-            f"Cote moyenne : {stats['average_odds']:.2f}" if stats["average_odds"] else "Aucune cote",
-            ACCENT if average_edge >= 0 else RED,
+        self.card_cache.set_value(
+            str(cache["entries"]), f"{cache['bytes'] / 1024:.0f} Ko en memoire"
         )
-
-    def refresh_predictions(self) -> None:
-        predictions = self.service.db.list_predictions()[:6]
-        self.predictions_table.setRowCount(0)
-        if not predictions:
-            self.predictions_table.setVisible(False)
-            self.predictions_empty.setVisible(True)
-            return
-        self.predictions_table.setVisible(True)
-        self.predictions_empty.setVisible(False)
-        self.predictions_table.setRowCount(len(predictions))
-        for row, prediction in enumerate(predictions):
-            match_item = table_item(
-                f"{prediction['home']} — {prediction['away']}", bold=True
-            )
-            match_item.setToolTip(prediction.get("note") or "")
-            self.predictions_table.setItem(row, 0, match_item)
-            self.predictions_table.setItem(row, 1, table_item(prediction["selection"]))
-            odd = prediction.get("odds")
-            self.predictions_table.setItem(
-                row,
-                2,
-                table_item(f"{odd:.2f}" if odd is not None else "—", align_right=True),
-            )
-            kind = {"pending": "blue", "won": "green", "lost": "red", "void": "gray"}.get(
-                prediction["status"], "gray"
-            )
-            labels = {"pending": "En cours", "won": "Gagne", "lost": "Perdu", "void": "Annule"}
-            badge = Badge(labels.get(prediction["status"], prediction["status"]), kind)
-            wrapper = QWidget()
-            wrap_layout = QHBoxLayout(wrapper)
-            wrap_layout.setContentsMargins(2, 0, 2, 0)
-            wrap_layout.addStretch()
-            wrap_layout.addWidget(badge)
-            self.predictions_table.setCellWidget(row, 3, wrapper)
 
     def refresh_cache(self) -> None:
         stats = self.service.cache_stats()
-        self.cache_value.setText(
-            f"{stats['entries']} reponse(s)"
-        )
+        self.cache_value.setText(f"{stats['entries']} reponse(s)")
         self.cache_hint.setText(
             f"{stats['bytes'] / 1024:.0f} Ko • {stats['fresh']} fraiche(s), "
             f"{stats['stale']} perimee(s) • succes session : {stats['hit_rate'] * 100:.0f} %"

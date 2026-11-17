@@ -1,4 +1,4 @@
-"""Importe les CSV gratuits football-data.co.uk dans le cache local.
+"""Importe les CSV gratuits football-data.co.uk dans le cache memoire.
 
 Aucune cle API n'est necessaire.
 
@@ -19,9 +19,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from betting_matrix.config import FREE_SEASONS, load_config  # noqa: E402
-from betting_matrix.db import Database  # noqa: E402
 from betting_matrix.errors import SourceError  # noqa: E402
 from betting_matrix.service import DataService  # noqa: E402
+from betting_matrix.store import JsonSettingsStore, MemoryCache  # noqa: E402
 from betting_matrix.sources import CSV_LEAGUES  # noqa: E402
 
 
@@ -73,8 +73,8 @@ def main() -> int:
         return 1
 
     config = load_config()
-    db = Database(config.db_path)
-    service = DataService(config, db)
+    cache = MemoryCache()
+    service = DataService(config, cache, JsonSettingsStore(config.settings_path))
     failures = 0
 
     for league_id in leagues:
@@ -119,8 +119,7 @@ def main() -> int:
                 print(f"{league_name} {season} : erreur inattendue - {exc}")
 
     stats = service.cache_stats()
-    print(f"\nCache : {stats['entries']} entree(s), {stats['bytes'] / 1024:.0f} Ko")
-    db.close()
+    print(f"\nCache session : {stats['entries']} entree(s), {stats['bytes'] / 1024:.0f} Ko")
     return 1 if failures else 0
 
 

@@ -31,7 +31,7 @@ from typing import Any
 import requests
 
 from .config import Config
-from .db import Database
+from .store import MemoryCache
 from .errors import SourceError, SourceNetworkError, SourceRateLimitError
 
 CSV_BASE = "https://www.football-data.co.uk/mmz4281"
@@ -985,14 +985,14 @@ def compute_standings_from_fixtures(
 class _CachedHttpSource:
     """Petit utilitaire de cache pour les sources HTTP gratuites."""
 
-    def __init__(self, config: Config, db: Database):
+    def __init__(self, config: Config, cache: MemoryCache):
         self.config = config
-        self.db = db
+        self.cache = cache
 
     def _cached(self, key: str, force: bool) -> dict | None:
         if force:
             return None
-        cached = self.db.cache_get(key)
+        cached = self.cache.cache_get(key)
         if cached and cached["fresh"]:
             return {
                 "data": cached["data"] or [],
@@ -1022,7 +1022,7 @@ class _CachedHttpSource:
     def _store(
         self, key: str, endpoint: str, params: dict, data: Any, ttl: int, source: str
     ) -> dict:
-        self.db.cache_set(
+        self.cache.cache_set(
             key,
             endpoint,
             params,
@@ -1054,7 +1054,7 @@ class FootballDataCsvSource(_CachedHttpSource):
                 f"Aucun CSV football-data.co.uk pour la ligue {league_id}.", "source"
             )
         key = f"csv:season:{league_id}:{season}"
-        cached = self.db.cache_get(key)
+        cached = self.cache.cache_get(key)
         hit = self._cached(key, force)
         if hit:
             return hit
@@ -1129,7 +1129,7 @@ class OpenFootballSource(_CachedHttpSource):
                 f"OpenFootball ne couvre pas la ligue {league_id}.", "source"
             )
         key = f"openfootball:season:{league_id}:{season}"
-        cached = self.db.cache_get(key)
+        cached = self.cache.cache_get(key)
         hit = self._cached(key, force)
         if hit:
             return hit
@@ -1198,7 +1198,7 @@ class OpenLigaDbSource(_CachedHttpSource):
                 f"OpenLigaDB ne couvre pas la ligue {league_id}.", "source"
             )
         key = f"openliga:season:{league_id}:{season}"
-        cached = self.db.cache_get(key)
+        cached = self.cache.cache_get(key)
         hit = self._cached(key, force)
         if hit:
             return hit
@@ -1255,8 +1255,8 @@ class OpenLigaDbSource(_CachedHttpSource):
 class TheSportsDbClient(_CachedHttpSource):
     """Client TheSportsDB utilisant la cle publique de demonstration."""
 
-    def __init__(self, config: Config, db: Database):
-        super().__init__(config, db)
+    def __init__(self, config: Config, cache: MemoryCache):
+        super().__init__(config, cache)
         self._lock = threading.RLock()
         self._last_call = 0.0
         self._min_interval = max(0, getattr(config, "tsdb_min_interval_ms", 2000)) / 1000.0
@@ -1281,7 +1281,7 @@ class TheSportsDbClient(_CachedHttpSource):
         ttl: int,
         force: bool = False,
     ) -> dict:
-        cached = self.db.cache_get(cache_key)
+        cached = self.cache.cache_get(cache_key)
         hit = self._cached(cache_key, force)
         if hit:
             return hit
@@ -1413,13 +1413,13 @@ class TheSportsDbClient(_CachedHttpSource):
 class FreeSources:
     """Facade qui combine toutes les sources gratuites."""
 
-    def __init__(self, config: Config, db: Database):
+    def __init__(self, config: Config, cache: MemoryCache):
         self.config = config
-        self.db = db
-        self.csv = FootballDataCsvSource(config, db)
-        self.openfootball = OpenFootballSource(config, db)
-        self.openliga = OpenLigaDbSource(config, db)
-        self.tsdb = TheSportsDbClient(config, db)
+        self.cache = cache
+        self.csv = FootballDataCsvSource(config, cache)
+        self.openfootball = OpenFootballSource(config, cache)
+        self.openliga = OpenLigaDbSource(config, cache)
+        self.tsdb = TheSportsDbClient(config, cache)
 
     @property
     def supported_leagues(self) -> set[int]:

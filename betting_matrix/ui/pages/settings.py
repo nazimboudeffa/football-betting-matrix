@@ -1,4 +1,4 @@
-"""Page Reglages : preferences d'analyse, sources gratuites, cache et prechargement."""
+"""Page Reglages : preferences d'analyse, sources gratuites, cache memoire et prechargement."""
 
 from __future__ import annotations
 
@@ -89,8 +89,8 @@ class SettingsPage(BasePage):
 
         card.add_layout(form)
         note = QLabel(
-            "Aucune bankroll, mise ou devise n'est suivie : l'application enregistre "
-            "uniquement les pronostics et leur resultat."
+            "Ces preferences sont conservees dans le fichier settings.json du dossier "
+            "de donnees. Aucune base de donnees n'est utilisee."
         )
         note.setObjectName("small")
         note.setWordWrap(True)
@@ -131,8 +131,8 @@ class SettingsPage(BasePage):
 
     def _build_cache_card(self) -> Card:
         card = Card(
-            "Cache persistant",
-            "Les reponses des sources gratuites sont stockees dans data/betting_matrix.db",
+            "Cache session",
+            "Les reponses des sources sont gardees en memoire, sans base de donnees",
         )
         self.cache_banner = Banner()
         card.add(self.cache_banner)
@@ -175,7 +175,7 @@ class SettingsPage(BasePage):
 
         ttl_label = QLabel(
             "Duree de cache : 6 a 12 h pour la saison en cours, 30 j pour les saisons passees. "
-            "Les cotes CSV sont rechargees avec les resultats."
+            "Le cache est vide a chaque redemarrage de l'application."
         )
         ttl_label.setObjectName("small")
         ttl_label.setWordWrap(True)
@@ -213,8 +213,8 @@ class SettingsPage(BasePage):
         card = Card("A propos", f"{APP_NAME} v{APP_VERSION}")
         about = QLabel(
             "Application desktop d'analyse football alimentee par des sources gratuites "
-            "(football-data.co.uk, OpenFootball, OpenLigaDB, TheSportsDB). Le cache local "
-            "et le suivi des pronostics sont geres dans une base SQLite sous data/."
+            "(football-data.co.uk, OpenFootball, OpenLigaDB, TheSportsDB). Les reglages "
+            "sont dans data/settings.json et le cache des reponses est conserve en memoire."
         )
         about.setWordWrap(True)
         about.setObjectName("small")
@@ -233,7 +233,7 @@ class SettingsPage(BasePage):
         card.add(disclaimer)
 
         buttons = QHBoxLayout()
-        button = QPushButton("Ouvrir le dossier de donnees")
+        button = QPushButton("Ouvrir le dossier des reglages")
         button.clicked.connect(
             lambda: QDesktopServices.openUrl(
                 QUrl.fromLocalFile(str(self.service.config.data_dir))
@@ -281,12 +281,12 @@ class SettingsPage(BasePage):
         self.cache_hit_label.setText(f"{stats['hit_rate'] * 100:.0f} %")
         self.cache_state_label.setText(f"{stats['fresh']} frais / {stats['stale']} perimes")
         self.cache_banner.set_message(
-            f"Cache persistant : {stats['entries']} reponse(s), {_human_size(stats['bytes'])}. "
-            "Il survit aux redemarrages et evite de retelecharger les sources gratuites.",
+            f"Cache session : {stats['entries']} reponse(s), {_human_size(stats['bytes'])}. "
+            "Les donnees sont gardees en memoire jusqu'a la fermeture de l'application.",
             "info",
         )
 
-        entries = self.service.db.cache_list(60)
+        entries = self.service.cache_list(60)
         now = datetime.now().timestamp()
         self.cache_table.setRowCount(len(entries))
         for row, entry in enumerate(entries):
@@ -327,7 +327,7 @@ class SettingsPage(BasePage):
             "Les prochains chargements devront retelecharger les donnees.",
         ):
             return
-        count = self.service.db.cache_clear()
+        count = self.service.cache_clear()
         self.refresh_cache()
         self.toast.emit(f"Cache vide ({count} entree(s)).")
 

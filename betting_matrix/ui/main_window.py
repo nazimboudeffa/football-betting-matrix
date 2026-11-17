@@ -26,7 +26,6 @@ from .pages.analysis import AnalysisPage
 from .pages.dashboard import DashboardPage
 from .pages.leagues import LeaguesPage
 from .pages.matches import MatchesPage
-from .pages.predictions import PredictionsPage
 from .pages.settings import SettingsPage
 from .pages.standings import StandingsPage
 
@@ -47,11 +46,10 @@ MONTHS = [
 ]
 
 PAGES = [
-    ("dashboard", "Tableau de bord", "Vue d'ensemble de vos pronostics et des sources"),
+    ("dashboard", "Tableau de bord", "Vue d'ensemble des matchs, des sources et du cache"),
     ("matches", "Matchs", "Matchs, navigation par date et archive des saisons"),
     ("analysis", "Analyse", "Probabilites du modele et detection de value bets"),
     ("standings", "Classements", "Classements des competitions suivies"),
-    ("predictions", "Mes pronostics", "Suivi de vos pronostics et performance du modele"),
     ("leagues", "Ligues", "Gerez les competitions suivies"),
     ("settings", "Reglages", "Configuration, sources gratuites et cache"),
 ]
@@ -171,12 +169,12 @@ class MainWindow(QMainWindow):
             f"color: {MUTED}; font-size: 7.5pt; font-weight: 700; letter-spacing: 1px;"
         )
         sources_layout.addWidget(sources_title)
-        sources_text = QLabel("6 competitions\nAucune cle API requise")
+        sources_text = QLabel("6 competitions\nCache en memoire")
         sources_text.setStyleSheet(f"color: {TEXT_SOFT}; font-size: 8pt;")
         sources_layout.addWidget(sources_text)
         layout.addWidget(sources_card)
 
-        version = QLabel(f"v{APP_VERSION} • donnees locales")
+        version = QLabel(f"v{APP_VERSION} • sans base de donnees")
         version.setStyleSheet(f"color: {MUTED}; font-size: 8pt;")
         version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(version)
@@ -222,7 +220,6 @@ class MainWindow(QMainWindow):
         self.matches = MatchesPage(self.service)
         self.analysis = AnalysisPage(self.service)
         self.standings = StandingsPage(self.service)
-        self.predictions = PredictionsPage(self.service)
         self.leagues = LeaguesPage(self.service)
         self.settings = SettingsPage(self.service)
         self.pages = {
@@ -230,7 +227,6 @@ class MainWindow(QMainWindow):
             "matches": self.matches,
             "analysis": self.analysis,
             "standings": self.standings,
-            "predictions": self.predictions,
             "leagues": self.leagues,
             "settings": self.settings,
         }
@@ -240,13 +236,11 @@ class MainWindow(QMainWindow):
 
     def _build_statusbar(self) -> None:
         status = self.statusBar()
-        status.showMessage(
-            "Pret. Sources gratuites, cache local, aucune cle API personnelle."
-        )
+        status.showMessage("Pret. Sources gratuites et cache en memoire.")
         self.status_cache = QLabel("Cache : —")
         self.status_cache.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
         status.addPermanentWidget(self.status_cache)
-        self.status_source = QLabel("SQLite • data/")
+        self.status_source = QLabel("Reglages JSON • cache memoire")
         self.status_source.setStyleSheet(f"color: {MUTED}; font-size: 8.5pt;")
         status.addPermanentWidget(self.status_source)
 
@@ -256,9 +250,6 @@ class MainWindow(QMainWindow):
         self.dashboard.navigate.connect(self._handle_navigate)
         self.dashboard.open_analysis.connect(self.open_analysis)
         self.matches.open_analysis.connect(self.open_analysis)
-        self.matches.predictions_changed.connect(self._on_predictions_changed)
-        self.analysis.predictions_changed.connect(self._on_predictions_changed)
-        self.predictions.predictions_changed.connect(self._on_predictions_changed)
         self.leagues.leagues_changed.connect(self._on_leagues_changed)
         self.settings.settings_changed.connect(self._on_settings_changed)
         self.settings.data_warmed.connect(self._on_data_warmed)
@@ -309,11 +300,6 @@ class MainWindow(QMainWindow):
 
     # ----------------------------------------------------- evenements metier
 
-    def _on_predictions_changed(self) -> None:
-        self.dashboard.refresh_stats()
-        self.dashboard.refresh_predictions()
-        self.predictions.refresh_data()
-
     def _on_leagues_changed(self) -> None:
         self.matches.refresh_leagues()
         self.standings.refresh_leagues()
@@ -322,8 +308,6 @@ class MainWindow(QMainWindow):
 
     def _on_settings_changed(self) -> None:
         self.dashboard.refresh_stats()
-        self.dashboard.refresh_predictions()
-        self.predictions.refresh_data()
         self._refresh_global_stats()
 
     def _on_data_warmed(self) -> None:

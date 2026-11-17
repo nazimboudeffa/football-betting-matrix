@@ -1,12 +1,12 @@
-"""Precharge le cache local sans ouvrir l'interface.
+"""Verifie le chargement des donnees sans ouvrir l'interface.
 
 Usage :
     python scripts/warmup.py
     python scripts/warmup.py --seasons 2026,2025
     python scripts/warmup.py --season 2025
 
-Toutes les saisons utilisent les sources gratuites (aucune cle API requise).
-Le script peut etre interrompu : les reponses deja recues restent en cache.
+Toutes les saisons utilisent les sources gratuites. Le cache est conserve en
+memoire pendant l'execution du script, sans base de donnees.
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from betting_matrix.config import FREE_SEASONS, load_config  # noqa: E402
-from betting_matrix.db import Database  # noqa: E402
 from betting_matrix.service import DataService  # noqa: E402
+from betting_matrix.store import JsonSettingsStore, MemoryCache  # noqa: E402
 from betting_matrix.sources import free_source_supports  # noqa: E402
 
 
@@ -74,8 +74,8 @@ def main() -> int:
         )
         return 1
 
-    db = Database(config.db_path)
-    service = DataService(config, db)
+    cache = MemoryCache()
+    service = DataService(config, cache, JsonSettingsStore(config.settings_path))
     if args.season is not None:
         service.update_settings({"default_season": args.season})
 
@@ -117,15 +117,13 @@ def main() -> int:
         error = f" - {step['error']}" if step.get("error") else ""
         print(f"  {status:5} {step['label']}{warning}{error}")
     stats = service.cache_stats()
-    print(f"\nCache : {stats['entries']} entree(s), {stats['bytes'] / 1024:.0f} Ko")
+    print(f"\nCache session : {stats['entries']} entree(s), {stats['bytes'] / 1024:.0f} Ko")
     if errors:
         print(
             f"\n{len(errors)} etape(s) en echec. "
-            "Les donnees deja en cache restent utilisables."
+            "Les reponses deja en cache restent utilisables."
         )
-        db.close()
         return 2
-    db.close()
     return 0
 
 

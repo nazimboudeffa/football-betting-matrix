@@ -8,7 +8,6 @@ from PyQt6.QtCore import QDate, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QDateEdit,
-    QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -33,7 +32,6 @@ from ..common import (
     score_text,
     status_badge,
 )
-from ..dialogs import PredictionDialog
 from ..widgets import Banner, EmptyState, SmallButton, TeamBadge, make_mono_label
 
 
@@ -64,7 +62,6 @@ def _short_round(value: str) -> str:
 
 class MatchesPage(BasePage):
     open_analysis = pyqtSignal(object)
-    predictions_changed = pyqtSignal()
 
     def __init__(self, service: DataService, parent=None):
         super().__init__(service, parent)
@@ -367,10 +364,7 @@ class MatchesPage(BasePage):
         action_layout.setSpacing(5)
         analyze = SmallButton("Analyser")
         analyze.clicked.connect(lambda _checked=False, f=fixture: self.open_analysis.emit(f))
-        prono = SmallButton("Prono", primary=True)
-        prono.clicked.connect(lambda _checked=False, f=fixture: self._open_prediction(f))
         action_layout.addWidget(analyze)
-        action_layout.addWidget(prono)
         table.setCellWidget(row, 6, actions)
 
     def _on_live_double_click(self, row: int, _column: int) -> None:
@@ -510,10 +504,7 @@ class MatchesPage(BasePage):
             action_layout.setSpacing(5)
             analyze = SmallButton("Analyser")
             analyze.clicked.connect(lambda _checked=False, f=fixture: self.open_analysis.emit(f))
-            prono = SmallButton("Prono", primary=True)
-            prono.clicked.connect(lambda _checked=False, f=fixture: self._open_prediction(f))
             action_layout.addWidget(analyze)
-            action_layout.addWidget(prono)
             table.setCellWidget(row, 5, actions)
 
     def _on_archive_double_click(self, row: int, _column: int) -> None:
@@ -550,37 +541,6 @@ class MatchesPage(BasePage):
                 self._load_archive()
             else:
                 self.load_live(force=False)
-
-    def _open_prediction(
-        self,
-        fixture: dict,
-        market: str | None = None,
-        selection: str | None = None,
-        odds: float | None = None,
-        model_prob: float | None = None,
-        edge: float | None = None,
-    ) -> None:
-        prefill = {
-            "fixture_id": fixture.get("id"),
-            "league_id": fixture["league"].get("id"),
-            "league_name": fixture["league"].get("name"),
-            "home": fixture["home"].get("name"),
-            "away": fixture["away"].get("name"),
-            "kickoff": fixture.get("date"),
-            "match_label": f"{fixture['home'].get('name')} — {fixture['away'].get('name')}",
-            "market": market or "1X2",
-            "selection": selection,
-            "odds": odds,
-            "model_prob": model_prob,
-            "edge": edge,
-        }
-        dialog = PredictionDialog(self.service, prefill, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            prediction = dialog.get_prediction()
-            self.service.db.add_prediction(prediction)
-            odd_text = f" @ {prediction['odds']:.2f}" if prediction.get("odds") else ""
-            self.toast.emit(f"Pronostic enregistre : {prediction['selection']}{odd_text}")
-            self.predictions_changed.emit()
 
     def _set_empty(
         self,

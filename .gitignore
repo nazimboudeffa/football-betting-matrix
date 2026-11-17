@@ -7,8 +7,9 @@ venv/
 build/
 dist/
 
-# Donnees locales (cache SQLite, paris, quota)
+# Donnees locales (reglages JSON)
 data/
+settings.json
 *.db
 *.db-wal
 *.db-shm
