@@ -43,6 +43,25 @@ class ContextTests(unittest.TestCase):
                 "_meta": {"cached": True},
             },
             "selected_strategy": "strict_value",
+            "standings": {
+                "league": {"id": 140, "name": "Ligue 1", "season": 2026},
+                "groups": [
+                    {
+                        "name": "Classement",
+                        "rows": [
+                            {
+                                "rank": 1,
+                                "team": {"id": 1, "name": "Lens"},
+                                "points": 42,
+                                "form": "VVNVD",
+                            }
+                        ],
+                    }
+                ],
+                "source": "csv",
+                "fetched_at": 1760000000.0,
+                "warning": None,
+            },
             "strategies": [
                 {
                     "id": "poisson",
@@ -69,7 +88,14 @@ class ContextTests(unittest.TestCase):
         self.assertFalse(data["strategies"][0]["selectionnee"])
         self.assertTrue(data["strategies"][1]["selectionnee"])
         self.assertEqual(data["strategies"][1]["cotes"][0]["odd"], 2.1)
+        self.assertEqual(data["classement"]["groups"][0]["rows"][0]["team"]["name"], "Lens")
+        self.assertEqual(data["classement"]["league"]["season"], 2026)
         self.assertIn("pas des cotes de bookmaker", data["note"])
+        self.assertIn("meme saison que le modele", data["note"])
+
+    def test_build_context_without_standings(self) -> None:
+        context = ai.build_context({"fixture": {}, "model": {}})
+        self.assertEqual(json.loads(context)["classement"], {})
 
     def test_build_prompt_uses_default_and_appends_context(self) -> None:
         prompt = ai.build_prompt("  ", "CONTEXTE")

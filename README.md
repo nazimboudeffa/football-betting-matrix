@@ -16,8 +16,9 @@ reglages sont enregistres dans `data/settings.json`.
 - Analyse d'un match : choix d'une strategie et affichage de ses cotes calculees.
 - Cotes calculees : chaque strategie de `user_strategies/` est un fichier autonome
   qui fournit son modele de probabilites et leur conversion en cotes.
-- Analyse IA : envoi du prompt, des donnees et de toutes les strategies a une
-  instance Ollama locale, avec choix du modele.
+- Analyse IA : envoi du prompt, des donnees du match, du modele, du classement
+  de la ligue et de toutes les strategies a une instance Ollama locale, avec
+  choix du modele.
 - Classement de la ligue affiche directement dans la page **Analyse**.
 - Cache en memoire des reponses des sources, sans SQLite ni fichier de cache.
 

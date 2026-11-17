@@ -65,6 +65,8 @@ class AnalysisPage(BasePage):
         self._standings_loaded = False
         self._standings_key: tuple[int, int] | None = None
         self._standings_groups: list[dict] = []
+        self._standings_data: dict | None = None
+        self._ai_standings_loading = False
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -282,6 +284,7 @@ class AnalysisPage(BasePage):
     def _standings_selection_changed(self) -> None:
         self._standings_loaded = False
         self._standings_key = None
+        self._standings_data = None
         if self.isVisible():
             self._load_standings()
 
@@ -325,6 +328,7 @@ class AnalysisPage(BasePage):
             return
         self._standings_loaded = True
         self._standings_key = key
+        self._standings_data = result
         self._standings_groups = result.get("groups") or []
         moment = (
             datetime.fromtimestamp(result["fetched_at"]).strftime("%H:%M")
@@ -347,6 +351,7 @@ class AnalysisPage(BasePage):
         if key is not None and key != self._standings_target_key():
             self._load_standings()
             return
+        self._standings_data = None
         self.standings_status.setText("Erreur")
         self.standings_banner.set_message(message, "error")
         self._show_standings_empty("Classement indisponible", message)
@@ -639,6 +644,60 @@ class AnalysisPage(BasePage):
             "selected_strategy": self.service.value_strategy_id(),
             "strategies": strategies,
         }
+        standings = self._ai_standings_for_fixture(self.fixture)
+        if standings is not None:
+            self._show_ai_dialog(payload, standings)
+            return
+
+        key = self._fixture_standings_key(self.fixture)
+        if key is None:
+            self.analysis_banner.set_message(
+                "Saison du match inconnue : le classement ne peut pas etre joint a l'analyse IA.",
+                "warning",
+            )
+            self._show_ai_dialog(payload)
+            return
+        if self._ai_standings_loading:
+            return
+        self._ai_standings_loading = True
+        self.run_task(
+            lambda _progress: self.service.standings(key[0], key[1]),
+            lambda result: self._show_ai_dialog(payload, result),
+            lambda _code, message: self._show_ai_dialog(payload, warning=message),
+            busy_text="Chargement du classement pour l'analyse IA...",
+        )
+
+    @staticmethod
+    def _fixture_standings_key(fixture: dict) -> tuple[int, int] | None:
+        league = fixture.get("league") or {}
+        try:
+            return int(league["id"]), int(league["season"])
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    def _ai_standings_for_fixture(self, fixture: dict) -> dict | None:
+        """Ne joint que le classement de la ligue et de la saison du match analyse."""
+        data = self._standings_data
+        key = self._fixture_standings_key(fixture)
+        if not data or key is None:
+            return None
+        source = data.get("league") or {}
+        try:
+            source_key = (int(source["id"]), int(source["season"]))
+        except (KeyError, TypeError, ValueError):
+            return None
+        return data if source_key == key else None
+
+    def _show_ai_dialog(
+        self, payload: dict, standings: dict | None = None, warning: str | None = None
+    ) -> None:
+        self._ai_standings_loading = False
+        if standings is not None:
+            payload["standings"] = standings
+        elif warning:
+            self.analysis_banner.set_message(
+                f"Classement indisponible pour l'analyse IA : {warning}", "warning"
+            )
         dialog = AiAnalysisDialog(self.service, payload, self)
         dialog.exec()
 
