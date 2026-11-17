@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import unittest
 
-from betting_matrix.analysis import (
+from football_betting_matrix.analysis import (
     analyze_match,
     build_season_stats,
     implied_probability,

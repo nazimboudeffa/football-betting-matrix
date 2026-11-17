@@ -104,14 +104,14 @@ Le cache des scripts est conserve en memoire pendant leur execution.
 ## Tests
 
 ```bash
-python -m compileall -q betting_matrix main.py scripts tests
+python -m compileall -q football_betting_matrix main.py scripts tests
 python -m unittest discover -s tests -v
 ```
 
 ## Structure
 
 ```text
-betting_matrix/
+football_betting_matrix/
   analysis.py      Modele Poisson, cotes, value bets
   config.py        Configuration et valeurs par defaut
   store.py         Cache memoire et reglages JSON

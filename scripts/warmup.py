@@ -19,10 +19,10 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from betting_matrix.config import FREE_SEASONS, load_config  # noqa: E402
-from betting_matrix.service import DataService  # noqa: E402
-from betting_matrix.store import JsonSettingsStore, MemoryCache  # noqa: E402
-from betting_matrix.sources import free_source_supports  # noqa: E402
+from football_betting_matrix.config import FREE_SEASONS, load_config  # noqa: E402
+from football_betting_matrix.service import DataService  # noqa: E402
+from football_betting_matrix.store import JsonSettingsStore, MemoryCache  # noqa: E402
+from football_betting_matrix.sources import free_source_supports  # noqa: E402
 
 
 def _parse_seasons(value: str) -> tuple[int, ...]:

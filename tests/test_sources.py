@@ -6,7 +6,7 @@ import unittest
 
 from datetime import date
 
-from betting_matrix.sources import (
+from football_betting_matrix.sources import (
     canonical_team_key,
     compute_standings_from_fixtures,
     free_source_supports,

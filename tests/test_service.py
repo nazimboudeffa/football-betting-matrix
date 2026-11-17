@@ -6,10 +6,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from betting_matrix.config import DEFAULT_LEAGUES, Config
-from betting_matrix.errors import SourceError
-from betting_matrix.service import DataService
-from betting_matrix.store import JsonSettingsStore, MemoryCache
+from football_betting_matrix.config import DEFAULT_LEAGUES, Config
+from football_betting_matrix.errors import SourceError
+from football_betting_matrix.service import DataService
+from football_betting_matrix.store import JsonSettingsStore, MemoryCache
 
 
 class SettingsTests(unittest.TestCase):

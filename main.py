@@ -12,11 +12,11 @@ from PyQt6.QtCore import QThreadPool, Qt
 from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication
 
-from betting_matrix.config import APP_NAME, APP_VERSION, load_config
-from betting_matrix.service import DataService
-from betting_matrix.store import JsonSettingsStore, MemoryCache
-from betting_matrix.theme import STYLESHEET
-from betting_matrix.ui.main_window import MainWindow
+from football_betting_matrix.config import APP_NAME, APP_VERSION, load_config
+from football_betting_matrix.service import DataService
+from football_betting_matrix.store import JsonSettingsStore, MemoryCache
+from football_betting_matrix.theme import STYLESHEET
+from football_betting_matrix.ui.main_window import MainWindow
 
 
 def _app_icon() -> QIcon:
