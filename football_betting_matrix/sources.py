@@ -1502,12 +1502,6 @@ class FreeSources:
                 "Ligue des Champions : calendrier partiel via la cle publique TheSportsDB. "
                 "Le classement est calcule sur les matchs disponibles."
             )
-        if any(not _is_finished(item) for item in items):
-            warnings.append(
-                "Les matchs a venir n'ont pas de cotes CSV : saisissez vos cotes "
-                "manuellement dans la page Analyse."
-            )
-
         warning = " | ".join(dict.fromkeys(w for w in warnings if w)) or None
         return {
             "data": items,
@@ -1603,12 +1597,6 @@ class FreeSources:
         )
         rows = ((payload.get("league") or {}).get("standings") or [[]])[0]
         warning = result.get("warning")
-        if warning:
-            warning = " | ".join(
-                part
-                for part in warning.split(" | ")
-                if "cotes CSV" not in part
-            ) or None
         if not rows:
             empty = (
                 "Aucun resultat termine ne permet encore de calculer ce classement. "
