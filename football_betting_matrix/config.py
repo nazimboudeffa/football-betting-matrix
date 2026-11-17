@@ -120,11 +120,14 @@ DEFAULT_LEAGUES: list[dict] = [
 ]
 
 DEFAULT_ODDS_STRATEGY = "classic_edge"
+DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
 
 DEFAULT_SETTINGS: dict = {
     "default_season": DEFAULT_SEASON,
     "tracked_leagues": DEFAULT_LEAGUES,
     "value_strategy": DEFAULT_ODDS_STRATEGY,
+    "ollama_url": DEFAULT_OLLAMA_URL,
+    "ollama_model": "",
 }
 
 

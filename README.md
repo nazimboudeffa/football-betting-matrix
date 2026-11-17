@@ -16,6 +16,8 @@ reglages sont enregistres dans `data/settings.json`.
 - Analyse d'un match : probabilites 1X2, Over/Under 2.5, BTTS, scores exacts.
 - Cotes calculees : probabilites du modele converties en cotes selon la strategie
   choisie dans `user_strategies/`.
+- Analyse IA : envoi du prompt, des donnees et de toutes les strategies a une
+  instance Ollama locale, avec choix du modele.
 - Classements calcules a partir des resultats disponibles.
 - Cache en memoire des reponses des sources, sans SQLite ni fichier de cache.
 
@@ -102,6 +104,32 @@ python scripts/warmup.py --season 2025
 ```
 
 Le cache des scripts est conserve en memoire pendant leur execution.
+
+## Analyse avec l'IA (Ollama)
+
+Dans la page **Analyse**, le bouton **Analyser avec l'IA** ouvre une fenetre avec :
+
+- un prompt modifiable ;
+- toutes les donnees de l'analyse (match, probabilites, scores, statistiques,
+  metadonnees) et les cotes calculees par **chaque** strategie ;
+- une liste deroulante des modeles installes, avec choix obligatoire du modele.
+
+Le clic sur **Analyser avec l'IA** dans cette fenetre envoie le prompt et le
+contexte a l'API locale d'Ollama (`/api/chat`) et affiche la reponse.
+
+Prerequis : Ollama doit etre **lance avant l'analyse** et au moins un modele doit
+etre installe :
+
+```bash
+ollama serve
+ollama pull mistral
+```
+
+L'URL du serveur (`http://127.0.0.1:11434` par defaut) se regle dans la page
+**Reglages** ; le dernier modele utilise est sauvegarde dans `data/settings.json`.
+Si Ollama n'est pas joignable ou n'a aucun modele installe, la fenetre affiche un
+message explicite et le bouton d'analyse reste desactive tant qu'aucun modele
+n'est disponible dans la liste deroulante.
 
 ## Strategies de calcul des cotes
 

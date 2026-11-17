@@ -29,6 +29,7 @@ from ...theme import (
     TEXT,
     TEXT_SOFT,
 )
+from ..ai_dialog import AiAnalysisDialog
 from ..base import BasePage
 from ..common import configure_table, populate_leagues, populate_seasons
 from ..widgets import (
@@ -138,6 +139,14 @@ class AnalysisPage(BasePage):
         self.load_button = QPushButton("Charger la saison")
         self.load_button.clicked.connect(lambda: self._load_fixture_list(force=True))
         row.addWidget(self.load_button)
+
+        self.ai_button = QPushButton("Analyser avec l'IA")
+        self.ai_button.setToolTip(
+            "Ouvrir une fenetre pour interroger Ollama avec l'analyse courante"
+        )
+        self.ai_button.clicked.connect(self._open_ai_dialog)
+        self.ai_button.setEnabled(False)
+        row.addWidget(self.ai_button)
         card.add_layout(row)
 
         hint = QLabel(
@@ -369,6 +378,37 @@ class AnalysisPage(BasePage):
         self.odds_empty.setVisible(True)
         self.odds_badge.setText("—")
         self.odds_badge.set_kind("gray")
+
+    def _open_ai_dialog(self) -> None:
+        if not self.model or not self.fixture:
+            self.analysis_banner.set_message(
+                "Lancez d'abord l'analyse du match avant d'utiliser l'IA.", "warning"
+            )
+            return
+
+        strategies: list[dict] = []
+        for strategy in self.service.strategies.strategies:
+            try:
+                rows = strategy.run(self.model["probabilities"])
+            except Exception:  # une strategie utilisateur ne doit pas bloquer l'IA
+                rows = []
+            strategies.append(
+                {
+                    "id": strategy.id,
+                    "name": strategy.name,
+                    "description": strategy.description,
+                    "rows": rows,
+                }
+            )
+
+        payload = {
+            "fixture": self.fixture,
+            "model": self.model,
+            "selected_strategy": self.service.value_strategy_id(),
+            "strategies": strategies,
+        }
+        dialog = AiAnalysisDialog(self.service, payload, self)
+        dialog.exec()
 
     def _build_team_card(self) -> Card:
         card = Card("Forme & statistiques", "Splits domicile / exterieur de la saison")
@@ -752,6 +792,7 @@ class AnalysisPage(BasePage):
             load_image(label, url, 34)
 
     def _set_controls_enabled(self, enabled: bool) -> None:
+        self.ai_button.setEnabled(enabled)
         if not enabled:
             self.analysis_banner.set_message(
                 "Selectionnez un match dans la liste ou cliquez sur Analyser depuis la page Matchs.",

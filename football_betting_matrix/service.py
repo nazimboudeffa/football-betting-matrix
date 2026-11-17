@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Callable
 
 from .analysis import analyze_match
-from .config import DEFAULT_SETTINGS, Config
+from .config import DEFAULT_OLLAMA_URL, DEFAULT_SETTINGS, Config
 from .errors import SourceError
 from .sources import (
     FREE_LEAGUES,
@@ -162,6 +162,18 @@ class DataService:
         self.strategies = load_strategies(strategies_dir(self.config.root_dir))
         return self.strategies
 
+    def ollama_url(self) -> str:
+        value = str(self.settings().get("ollama_url") or "").strip().rstrip("/")
+        return value or DEFAULT_OLLAMA_URL
+
+    def ollama_model(self) -> str:
+        return str(self.settings().get("ollama_model") or "").strip()
+
+    def set_ollama_model(self, model: str) -> None:
+        settings = self.settings()
+        settings["ollama_model"] = (model or "").strip()
+        self.save_settings(settings)
+
     def update_settings(self, patch: dict) -> dict:
         settings = self.settings()
         if "default_season" in patch:
@@ -171,6 +183,9 @@ class DataService:
                     settings["default_season"] = season
             except (TypeError, ValueError):
                 pass
+        if "ollama_url" in patch:
+            url = str(patch["ollama_url"] or "").strip().rstrip("/")
+            settings["ollama_url"] = url or DEFAULT_OLLAMA_URL
         return self.save_settings(settings)
 
     def tracked_leagues(self) -> list[dict]:

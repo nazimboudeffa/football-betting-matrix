@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QProgressBar,
     QPushButton,
     QScrollArea,
@@ -87,10 +88,15 @@ class SettingsPage(BasePage):
         populate_seasons(self.season_combo, self.service.config.seasons)
         form.addRow("Saison de reference", self.season_combo)
 
+        self.ollama_edit = QLineEdit()
+        self.ollama_edit.setPlaceholderText("http://127.0.0.1:11434")
+        form.addRow("Serveur Ollama", self.ollama_edit)
+
         card.add_layout(form)
         note = QLabel(
             "Ces preferences sont conservees dans le fichier settings.json du dossier "
-            "de donnees. Aucune base de donnees n'est utilisee."
+            "de donnees. Le serveur Ollama sert a la fenetre « Analyser avec l'IA ». "
+            "Aucune base de donnees n'est utilisee."
         )
         note.setObjectName("small")
         note.setWordWrap(True)
@@ -262,11 +268,13 @@ class SettingsPage(BasePage):
         if index >= 0:
             self.season_combo.setCurrentIndex(index)
         self.season_combo.blockSignals(False)
+        self.ollama_edit.setText(self.service.ollama_url())
 
     def _save_settings(self) -> None:
         self.service.update_settings(
             {
                 "default_season": self.season_combo.currentData(),
+                "ollama_url": self.ollama_edit.text(),
             }
         )
         self.toast.emit("Preferences enregistrees.")
