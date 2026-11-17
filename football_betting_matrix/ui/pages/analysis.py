@@ -1247,8 +1247,14 @@ class AnalysisPage(BasePage):
             return
         home = self.model["home"]
         away = self.model["away"]
-        self.team_home_header.setText(home.get("name") or "Domicile")
-        self.team_away_header.setText(away.get("name") or "Exterieur")
+        home_rank = home.get("rank")
+        away_rank = away.get("rank")
+        self.team_home_header.setText(
+            f"{home.get('name') or 'Domicile'} ({home_rank}e)" if home_rank else home.get("name") or "Domicile"
+        )
+        self.team_away_header.setText(
+            f"{away.get('name') or 'Exterieur'} ({away_rank}e)" if away_rank else away.get("name") or "Exterieur"
+        )
         self.team_values["played"][0].setText(str(home.get("played", 0)))
         self.team_values["played"][1].setText(str(away.get("played", 0)))
         self.team_values["goals_for"][0].setText(str(home.get("goals_for", 0)))
@@ -1267,13 +1273,18 @@ class AnalysisPage(BasePage):
         self.team_values["defense"][1].setText(f"{away.get('defense_away', 1.0):.2f}")
         self.home_form.set_form("".join(home.get("form") or []))
         self.away_form.set_form("".join(away.get("form") or []))
+
+        messages: list[str] = []
         if not home.get("known") or not away.get("known"):
-            self.team_banner.set_message(
-                "Une equipe est absente de la saison de reference : ses forces sont neutres.",
-                "warning",
+            messages.append(
+                "Une equipe est absente de la saison de reference : ses forces sont neutres."
             )
-        else:
-            self.team_banner.set_message("")
+        n_teams = self.model.get("n_teams")
+        if home_rank and away_rank:
+            total = f" sur {n_teams}" if n_teams else ""
+            messages.append(f"Classement avant le match : {home_rank}e et {away_rank}e{total}.")
+        unknown_team = not home.get("known") or not away.get("known")
+        self.team_banner.set_message(" ".join(messages), "warning" if unknown_team else "info")
 
     # ---------------------------------------------------------------- cotes
 

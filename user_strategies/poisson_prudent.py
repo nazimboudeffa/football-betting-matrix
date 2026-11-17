@@ -10,7 +10,7 @@ from typing import Iterable
 
 from football_betting_matrix.strategies import base_rows
 
-NAME = "Cote prudente"
+NAME = "Poisson Prudent"
 DESCRIPTION = (
     "Marches >= 45 % de probabilite, cote juste + 5 % de marge "
     "(modele Poisson inclus)."
@@ -274,7 +274,7 @@ def analyze_match(
         }
 
     return {
-        "model_name": "Poisson",
+        "model_name": "Poisson Prudent",
         "probabilities": {
             "home": _round(probs["home"]),
             "draw": _round(probs["draw"]),

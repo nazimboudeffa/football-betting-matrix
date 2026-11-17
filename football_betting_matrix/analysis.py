@@ -1,8 +1,9 @@
 """Helpers generiques lies aux cotes.
 
-Le calcul des probabilites (modele de Poisson) n'est plus ici : il vit dans
-``user_strategies/poisson.py`` et est expose par les strategies utilisateur.
-Le coeur ne garde que le parsing des cotes bookmaker et les helpers de marge.
+Le calcul des probabilites (Poisson, classement, ...) n'est plus ici : il vit
+dans les fichiers de ``user_strategies/`` et est expose par les strategies
+utilisateur. Le coeur ne garde que le parsing des cotes bookmaker et les helpers
+de marge.
 """
 
 from __future__ import annotations

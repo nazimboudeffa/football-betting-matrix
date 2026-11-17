@@ -103,14 +103,13 @@ class BundledStrategyTests(unittest.TestCase):
     def setUp(self) -> None:
         catalog = load_strategies(ROOT_DIR / "user_strategies")
         self.catalog = catalog
-        self.poisson = catalog.get("poisson")
-        self.strict = catalog.get("strict_value")
+        self.poisson = catalog.get("poisson_pur")
+        self.strict = catalog.get("poisson_prudent")
+        self.classement = catalog.get("classement_pur")
 
-    def test_two_bundled_strategies_are_loaded_without_error(self) -> None:
-        self.assertEqual(
-            {strategy.id for strategy in self.catalog.strategies},
-            {"poisson", "strict_value"},
-        )
+    def test_bundled_strategies_are_loaded_without_error(self) -> None:
+        ids = {strategy.id for strategy in self.catalog.strategies}
+        self.assertTrue({"classement_pur", "poisson_prudent", "poisson_pur"}.issubset(ids))
         self.assertEqual(self.catalog.errors, ())
 
     def test_poisson_matches_the_core_model_odds(self) -> None:
@@ -133,6 +132,16 @@ class BundledStrategyTests(unittest.TestCase):
         self.assertTrue(all(row["signal"] == "Marge +5 %" for row in rows))
         self.assertTrue(all(row["highlight"] for row in rows))
 
+    def test_classement_pur_uses_fair_odds_and_a_ranking_signal(self) -> None:
+        self.assertIsNotNone(self.classement)
+        expected = model_odds(PROBABILITIES)
+        rows = self.classement.run(PROBABILITIES)
+
+        self.assertEqual([row["key"] for row in rows], [row["key"] for row in expected])
+        self.assertEqual([row["odd"] for row in rows], [row["odd"] for row in expected])
+        self.assertTrue(all(row["signal"] == "Classement" for row in rows))
+        self.assertFalse(any(row["highlight"] for row in rows))
+
     def test_bundled_strategies_provide_the_probability_model(self) -> None:
         self.assertIsNotNone(self.catalog.probability_model())
         for strategy in self.catalog.strategies:
@@ -153,11 +162,12 @@ class CoreSeparationTests(unittest.TestCase):
 
     def test_strategy_files_are_self_contained(self) -> None:
         folder = ROOT_DIR / "user_strategies"
-        for name in ("poisson.py", "strict_value.py"):
+        names = ("poisson_pur.py", "poisson_prudent.py", "classement_pur.py")
+        for name in names:
             source = (folder / name).read_text(encoding="utf-8")
             self.assertIn("def analyze_match(", source, name)
             self.assertIn("def evaluate(", source, name)
-            for other in ("poisson", "strict_value"):
+            for other in (item.removesuffix(".py") for item in names):
                 if other != name.removesuffix(".py"):
                     self.assertNotIn(f"from {other} import", source, name)
 
@@ -181,23 +191,23 @@ class ServiceStrategyTests(unittest.TestCase):
 
     def test_service_loads_bundled_strategies(self) -> None:
         service = self._service()
-        self.assertEqual(
-            {strategy.id for strategy in service.strategies.strategies},
-            {"poisson", "strict_value"},
-        )
+        ids = {strategy.id for strategy in service.strategies.strategies}
+        self.assertTrue({"classement_pur", "poisson_prudent", "poisson_pur"}.issubset(ids))
 
     def test_selection_is_saved_as_a_json_setting(self) -> None:
         service = self._service()
         self.assertEqual(service.value_strategy_id(), DEFAULT_STRATEGY_ID)
 
-        service.set_value_strategy("strict_value")
-        self.assertEqual(self._service().value_strategy_id(), "strict_value")
+        service.set_value_strategy("classement_pur")
+        self.assertEqual(self._service().value_strategy_id(), "classement_pur")
 
     def test_reload_strategies_reads_the_folder_again(self) -> None:
         service = self._service()
+        before = {strategy.id for strategy in service.strategies.strategies}
         catalog = service.reload_strategies()
-        self.assertEqual(len(catalog.strategies), 2)
-        self.assertEqual(len(service.strategies.strategies), 2)
+
+        self.assertEqual({strategy.id for strategy in catalog.strategies}, before)
+        self.assertEqual({strategy.id for strategy in service.strategies.strategies}, before)
 
 
 if __name__ == "__main__":

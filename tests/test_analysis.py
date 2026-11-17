@@ -11,7 +11,7 @@ from football_betting_matrix.analysis import (
     parse_odds,
 )
 from football_betting_matrix.strategies import model_odds
-from user_strategies.poisson import (
+from user_strategies.poisson_pur import (
     analyze_match,
     build_season_stats,
     poisson_matrix,

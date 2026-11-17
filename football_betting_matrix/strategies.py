@@ -140,7 +140,7 @@ def load_strategies(directory: Path) -> StrategyCatalog:
     if not directory.is_dir():
         return StrategyCatalog()
 
-    # Les strategies peuvent importer un module voisin (ex. poisson.py) sans package.
+    # Les strategies peuvent importer un module voisin (ex. poisson_pur.py) sans package.
     directory_str = str(directory.resolve())
     if directory_str not in sys.path:
         sys.path.insert(0, directory_str)
@@ -150,6 +150,13 @@ def load_strategies(directory: Path) -> StrategyCatalog:
     for path in sorted(directory.glob("*.py")):
         if path.name.startswith("_"):
             continue
+        # Un fichier vide est souvent un brouillon : il ne doit pas compter
+        # comme une strategie invalide ni afficher d'erreur dans l'interface.
+        try:
+            if not path.read_text(encoding="utf-8").strip():
+                continue
+        except OSError:
+            pass
         module_name = f"_user_strategy_{path.stem}"
         try:
             module = _load_module(path, module_name)

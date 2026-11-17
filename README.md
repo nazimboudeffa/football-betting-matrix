@@ -177,12 +177,18 @@ La page **Analyse** utilise une strategie selectionnable. Le coeur de l'applicat
 ne contient aucun calcul de probabilites : il charge une strategie qui fournit
 `analyze(...)` (le modele) et `evaluate(...)` (les cotes).
 
-Deux strategies de base sont fournies dans `user_strategies/` :
+Quatre strategies de base sont fournies dans `user_strategies/` :
 
-- `poisson.py` : modele de Poisson, probabilites brutes converties en cotes
+- `poisson_pur.py` : modele de Poisson, probabilites brutes converties en cotes
   `1 / probabilite`, sans marge (defaut).
-- `strict_value.py` : **fichier autonome** avec son propre modele de Poisson ; ne
-  garde que les marches a au moins 45 % de probabilite, avec cote juste + 5 %.
+- `poisson_prudent.py` : **fichier autonome** avec son propre modele de Poisson ;
+  ne garde que les marches a au moins 45 % de probabilite, avec cote juste + 5 %.
+- `classement_pur.py` : **fichier autonome** sans Poisson ; probabilites 1N2
+  deduites de l'ecart de rang au classement reconstruit avant le match, over 2.5
+  et BTTS par frequences observees, cote juste sans marge.
+- `ratio_rangs.py` : **fichier autonome** sans Poisson ; le ratio des rangs
+  (rang adverse / somme des rangs) pondere les probabilites domicile / exterieur
+  de la ligue, avec retour progressif a la moyenne en debut de saison.
 
 Chaque strategie est un fichier `.py` independant dans `user_strategies/`, **hors
 du package `football_betting_matrix`**. Chaque module expose `NAME`, `DESCRIPTION`,
@@ -215,8 +221,10 @@ football_betting_matrix/
   strategies.py    Chargement et validation des strategies
   ui/              Interface PyQt6
 user_strategies/     Modeles et strategies utilisateur (hors du coeur)
-  poisson.py         Poisson (defaut)
-  strict_value.py    Cote prudente (marge +5 %)
+  poisson_pur.py     Poisson sans marge (defaut)
+  poisson_prudent.py Poisson avec marge +5 %
+  classement_pur.py  Classement sans Poisson
+  ratio_rangs.py     Ratio des rangs sans Poisson
 scripts/
   import_football_data.py
   warmup.py

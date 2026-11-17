@@ -57,8 +57,9 @@ def evaluate(probabilities, context=None):
 ## Un fichier = une strategie autonome
 
 Chaque fichier contient son propre modele (`analyze`) et sa propre conversion en
-cotes (`evaluate`). `poisson.py` et `strict_value.py` sont independants : aucun
-fichier de strategie n'importe un autre fichier de strategie.
+cotes (`evaluate`). `poisson_pur.py`, `poisson_prudent.py`, `classement_pur.py`
+et `ratio_rangs.py` sont independants : aucun fichier de strategie n'importe un
+autre fichier de strategie.
 
 Le coeur ne connait aucun nom de modele : il appelle simplement `analyze()` de la
 strategie active. Pour proposer un autre modele, creez un nouveau fichier avec son
@@ -70,7 +71,13 @@ la liste des strategies.
 
 ## Exemples fournis
 
-- `poisson.py` : modele de Poisson, probabilites brutes converties en cotes
+- `poisson_pur.py` : modele de Poisson, probabilites brutes converties en cotes
   `1 / probabilite`, sans marge (strategie par defaut).
-- `strict_value.py` : fichier autonome avec son propre modele de Poisson ; ne garde
-  que les marches a au moins 45 % de probabilite, avec cote juste + 5 % de marge.
+- `poisson_prudent.py` : fichier autonome avec son propre modele de Poisson ; ne
+  garde que les marches a au moins 45 % de probabilite, avec cote juste + 5 %.
+- `classement_pur.py` : fichier autonome sans Poisson ; les probabilites 1N2
+  dependent de l'ecart de rang au classement reconstruit avant le match. Les
+  marches over 2.5 et BTTS utilisent les frequences observees, avec cote juste.
+- `ratio_rangs.py` : fichier autonome sans Poisson ; le ratio rang adverse /
+  somme des rangs pondere les probabilites domicile / exterieur de la ligue (pour
+  garder l'avantage du terrain), avec amortissement en debut de saison.

@@ -12,7 +12,7 @@ from typing import Iterable
 
 from football_betting_matrix.strategies import base_rows
 
-NAME = "Poisson"
+NAME = "Poisson Pur"
 DESCRIPTION = "Probabilites brutes du modele de Poisson, cote = 1 / prob (sans marge)."
 
 MAX_GOALS = 9
@@ -273,7 +273,7 @@ def analyze_match(
         }
 
     return {
-        "model_name": "Poisson",
+        "model_name": "Poisson Pur",
         "probabilities": {
             "home": _round(probs["home"]),
             "draw": _round(probs["draw"]),
