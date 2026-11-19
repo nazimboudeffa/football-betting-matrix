@@ -69,6 +69,26 @@ def configure_table(
         table.setSortingEnabled(False)
 
 
+# Padding horizontal applique aux cellules par QTableWidget::item (8 px de
+# chaque cote). Les widgets de cellule perdent cette largeur : il faut l'ajouter
+# pour qu'ils s'affichent en entier.
+CELL_HORIZONTAL_PADDING = 16
+
+
+def fit_widget_column(table: QTableWidget, column: int) -> None:
+    """Ajuste une colonne de widgets a la largeur de son contenu le plus large."""
+    widest = 0
+    for row in range(table.rowCount()):
+        cell = table.cellWidget(row, column)
+        if cell is not None:
+            widest = max(widest, cell.sizeHint().width())
+    if widest:
+        header = table.horizontalHeader()
+        width = max(widest + CELL_HORIZONTAL_PADDING, header.sectionSizeHint(column))
+        header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(column, width)
+
+
 def status_badge(fixture: dict) -> Badge:
     status = fixture.get("status") or {}
     short = status.get("short") or "NS"

@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QGridLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QPushButton,
     QScrollArea,
@@ -32,7 +33,7 @@ from ...theme import (
 )
 from ..ai_dialog import AiAnalysisDialog
 from ..base import BasePage
-from ..common import configure_table, populate_leagues, populate_seasons
+from ..common import configure_table, fit_widget_column, populate_leagues, populate_seasons
 from ..widgets import (
     Badge,
     Banner,
@@ -428,6 +429,9 @@ class AnalysisPage(BasePage):
             stretch_columns=[1],
             row_height=38,
         )
+        header = self.standings_table.horizontalHeader()
+        header.setSectionResizeMode(11, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(11, 140)
         self.standings_table.setMinimumHeight(320)
         self.standings_stack.addWidget(self.standings_table)
 
@@ -614,6 +618,7 @@ class AnalysisPage(BasePage):
                 row_index, 12, self._standings_status_item(row.get("description") or "")
             )
 
+        fit_widget_column(self.standings_table, 11)
         self.standings_table.setColumnHidden(2, not multiple)
 
     @staticmethod
@@ -1042,11 +1047,13 @@ class AnalysisPage(BasePage):
             self.team_values[key] = (home_value, away_value)
 
         form_row = len(rows) + 1
-        grid.addWidget(QLabel("Forme (5 derniers)"), form_row, 0)
+        form_label = QLabel("Forme (5 derniers)")
+        form_label.setStyleSheet(f"color: {MUTED};")
+        grid.addWidget(form_label, form_row, 0)
         self.home_form = FormBadges("")
         self.away_form = FormBadges("")
-        grid.addWidget(self.home_form, form_row, 1)
-        grid.addWidget(self.away_form, form_row, 2)
+        grid.addWidget(self.home_form, form_row, 1, Qt.AlignmentFlag.AlignRight)
+        grid.addWidget(self.away_form, form_row, 2, Qt.AlignmentFlag.AlignRight)
         card.add_layout(grid)
 
         self.team_banner = Banner()

@@ -241,11 +241,26 @@ class Badge(QLabel):
 
 
 class FormBadges(QWidget):
+    LABELS = {
+        "V": "Victoire",
+        "W": "Victoire",
+        "N": "Nul",
+        "D": "Defaite",
+        "L": "Defaite",
+    }
+    COLORS = {
+        "V": (ACCENT, "rgba(40,209,124,0.18)"),
+        "W": (ACCENT, "rgba(40,209,124,0.18)"),
+        "N": (AMBER, "rgba(244,183,64,0.18)"),
+        "D": (RED, "rgba(242,99,114,0.18)"),
+        "L": (RED, "rgba(242,99,114,0.18)"),
+    }
+
     def __init__(self, form: str = "", parent=None):
         super().__init__(parent)
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
-        self._layout.setSpacing(3)
+        self._layout.setSpacing(4)
         self.set_form(form)
 
     def set_form(self, form: str) -> None:
@@ -260,21 +275,15 @@ class FormBadges(QWidget):
             label.setObjectName("small")
             self._layout.addWidget(label)
             return
-        colors = {
-            "V": (ACCENT, "rgba(40,209,124,0.18)"),
-            "W": (ACCENT, "rgba(40,209,124,0.18)"),
-            "N": (AMBER, "rgba(244,183,64,0.18)"),
-            "D": (MUTED, "rgba(130,149,176,0.16)"),
-            "L": (RED, "rgba(242,99,114,0.18)"),
-        }
         for letter in form:
-            color, background = colors.get(letter, (MUTED, "rgba(130,149,176,0.16)"))
+            color, background = self.COLORS.get(letter, (MUTED, "rgba(130,149,176,0.16)"))
             label = QLabel(letter)
-            label.setFixedSize(18, 18)
+            label.setFixedSize(20, 20)
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            label.setToolTip(self.LABELS.get(letter, letter))
             label.setStyleSheet(
-                f"color: {color}; background: {background}; border-radius: 5px; "
-                f"font-size: 7.5pt; font-weight: 700;"
+                f"color: {color}; background: {background}; border-radius: 6px; "
+                f"font-size: 8pt; font-weight: 700;"
             )
             self._layout.addWidget(label)
 

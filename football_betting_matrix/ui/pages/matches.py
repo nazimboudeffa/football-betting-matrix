@@ -27,6 +27,7 @@ from ...theme import AMBER, BLUE, MUTED, TEXT
 from ..base import BasePage
 from ..common import (
     configure_table,
+    fit_widget_column,
     format_odd,
     populate_leagues,
     populate_seasons,
@@ -140,6 +141,8 @@ class MatchesPage(BasePage):
             row_height=44,
         )
         header = self.live_table.horizontalHeader()
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(5, 130)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)
         header.resizeSection(6, 96)
         self.live_table.cellDoubleClicked.connect(self._on_live_double_click)
@@ -331,6 +334,7 @@ class MatchesPage(BasePage):
         table.setRowCount(len(items))
         for row, fixture in enumerate(items):
             self._fill_live_row(table, row, fixture)
+        fit_widget_column(table, 5)
 
     def _fill_live_row(self, table: QTableWidget, row: int, fixture: dict) -> None:
         time_item = QTableWidgetItem(_time_label(fixture.get("date")))
