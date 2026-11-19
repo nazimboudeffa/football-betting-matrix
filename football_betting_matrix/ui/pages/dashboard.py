@@ -89,13 +89,6 @@ class DashboardPage(BasePage):
         self.matches_layout.setSpacing(8)
         card.add(self.matches_holder, 1)
 
-        footer = QHBoxLayout()
-        archive = QPushButton("Explorer l'archive des saisons")
-        archive.setObjectName("link")
-        archive.clicked.connect(lambda: self.navigate.emit("matches_archive", None))
-        footer.addWidget(archive)
-        footer.addStretch()
-        card.add_layout(footer)
         return card
 
     def _build_sources_card(self) -> Card:
@@ -215,7 +208,7 @@ class DashboardPage(BasePage):
             self._show_matches_message(
                 "Aucun match aujourd'hui dans vos ligues",
                 "Les sources gratuites ne publient pas encore de match pour cette date. "
-                "Explorez les autres dates ou l'archive des saisons 2025-2026.",
+                "Explorez les autres dates ou consultez la liste de tous les matchs.",
                 tomorrow=True,
             )
             return
@@ -304,7 +297,7 @@ class DashboardPage(BasePage):
             retry_button = QPushButton("Reessayer")
             retry_button.clicked.connect(self._load_fixtures)
             buttons.addWidget(retry_button)
-        archive = QPushButton("Ouvrir l'archive")
+        archive = QPushButton("Voir la liste de tous les matchs")
         archive.clicked.connect(lambda: self.navigate.emit("matches_archive", None))
         buttons.addWidget(archive)
         buttons.addStretch()

@@ -9,6 +9,9 @@ football-data.co.uk, OpenFootball, OpenLigaDB et TheSportsDB. Aucune base de
 donnees n'est utilisee : les reponses sont gardees en cache memoire et les
 reglages sont enregistres dans `data/settings.json`.
 
+Pour une prise en main complete, consultez le
+[manuel d'utilisation](doc/manuel-utilisateur.md).
+
 Le CSV football-data.co.uk est egalement utilise pour enrichir la page
 **Analyse** : xG, statistiques de match, cotes d'ouverture et de cloture,
 probabilites de marche sans marge et profil de l'arbitre. Ces donnees sont
@@ -18,7 +21,7 @@ l'application.
 ## Fonctionnalites
 
 - Tableau de bord : matchs a venir, ligues suivies, sources et cache session.
-- Matchs du jour, navigation par date et archive des saisons.
+- Matchs du jour, navigation par date et liste des matchs par saison.
 - Analyse d'un match : choix d'une strategie et affichage de ses cotes calculees.
   Changer de ligue ou de saison selectionne automatiquement le **dernier match
   joue** et affiche son score dans l'en-tete.

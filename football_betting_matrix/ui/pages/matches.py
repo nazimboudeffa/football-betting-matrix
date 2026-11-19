@@ -1,4 +1,4 @@
-"""Page Matchs : direct (autour d'aujourd'hui) + archive des saisons accessibles."""
+"""Page Matchs : direct (autour d'aujourd'hui) + liste des matchs par saison."""
 
 from __future__ import annotations
 
@@ -70,13 +70,16 @@ class MatchesPage(BasePage):
         self._live_loaded = False
         self._live_loading = False
         self._live_items: list[dict] = []
+        self._live_requested_date: str | None = None
+        self._live_pending_reload = False
+        self._live_pending_force = False
         self._archive_loading = False
         self._archive_key: tuple[int, int] | None = None
         self._archive_items: list[dict] = []
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_live_tab(), "Autour d'aujourd'hui")
-        self.tabs.addTab(self._build_archive_tab(), "Archive des saisons")
+        self.tabs.addTab(self._build_archive_tab(), "Liste des matchs par saison")
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.root.addWidget(self.tabs, 1)
         self._refresh_league_combos()
@@ -162,8 +165,8 @@ class MatchesPage(BasePage):
         layout.setSpacing(10)
 
         info = Banner(
-            "Archive 2025-2026 : resultats et cotes CSV gratuits, calendriers OpenFootball / "
-            "OpenLigaDB / TheSportsDB.",
+            "Liste des matchs par saison : resultats et cotes CSV gratuits, calendriers "
+            "OpenFootball / OpenLigaDB / TheSportsDB.",
             "info",
         )
         layout.addWidget(info)
@@ -248,12 +251,24 @@ class MatchesPage(BasePage):
     # -------------------------------------------------------------- live data
 
     def load_live(self, force: bool = False) -> None:
+        date_str = self.date_edit.date().toString("yyyy-MM-dd")
         if self._live_loading:
+            # Une date differente (ou un rechargement) a ete demandee pendant le
+            # chargement en cours : on le rejouera des que celui-ci terminera.
+            if date_str != self._live_requested_date or force:
+                self._live_pending_reload = True
+                self._live_pending_force = self._live_pending_force or force
+            else:
+                # Retour a la date en cours : le chargement en cours suffit.
+                self._live_pending_reload = False
+                self._live_pending_force = False
             return
         self._live_loading = True
+        self._live_pending_reload = False
+        self._live_pending_force = False
+        self._live_requested_date = date_str
         self.live_status_label.setText("Chargement...")
         self.live_banner.set_message("")
-        date_str = self.date_edit.date().toString("yyyy-MM-dd")
 
         self.run_task(
             lambda _progress: self.service.fixtures_by_date(date_str, force=force),
@@ -262,8 +277,23 @@ class MatchesPage(BasePage):
             busy_text=f"Recuperation des matchs du {date_str}...",
         )
 
-    def _on_live_loaded(self, result: dict) -> None:
+    def _finish_live_load(self) -> bool:
+        """Libere le chargement et relance la demande la plus recente.
+
+        Renvoie True si une nouvelle demande a remplace le resultat courant.
+        """
         self._live_loading = False
+        if self._live_pending_reload:
+            force = self._live_pending_force
+            self._live_pending_reload = False
+            self._live_pending_force = False
+            self.load_live(force=force)
+            return True
+        return False
+
+    def _on_live_loaded(self, result: dict) -> None:
+        if self._finish_live_load():
+            return
         self._live_loaded = True
         self._live_items = result.get("items") or []
         cached = result.get("cached")
@@ -284,7 +314,8 @@ class MatchesPage(BasePage):
         self._render_live()
 
     def _on_live_error(self, code: str, message: str) -> None:
-        self._live_loading = False
+        if self._finish_live_load():
+            return
         self.live_status_label.setText("Erreur")
         self.live_banner.set_message(message, "error")
         self._set_empty(
@@ -322,10 +353,10 @@ class MatchesPage(BasePage):
                 title = "Aucun match dans vos ligues a cette date"
                 text = (
                     "Les sources gratuites ne couvrent pas encore cette date. "
-                    "Essayez une date proche ou explorez l'archive des saisons."
+                    "Essayez une date proche ou changez de ligue."
                 )
-                action = "Ouvrir l'archive"
-                callback = self.show_archive
+                action = None
+                callback = None
             self._set_empty(self.live_empty_layout, title, text, action, callback)
             self.live_stack.setCurrentIndex(1)
             return
@@ -414,7 +445,7 @@ class MatchesPage(BasePage):
         self.archive_banner.set_message("")
         self._set_empty(
             self.archive_empty_layout,
-            "Chargement de l'archive...",
+            "Chargement de la liste des matchs...",
             "La premiere requete peut prendre quelques secondes (telechargement CSV).",
         )
         self.archive_stack.setCurrentIndex(1)
@@ -453,7 +484,7 @@ class MatchesPage(BasePage):
         self.archive_banner.set_message(message, "error")
         self._set_empty(
             self.archive_empty_layout,
-            "Archive indisponible",
+            "Liste des matchs indisponible",
             message,
             "Reessayer",
             lambda: self._load_archive(force=True),

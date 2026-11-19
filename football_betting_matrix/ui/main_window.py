@@ -46,7 +46,7 @@ MONTHS = [
 
 PAGES = [
     ("dashboard", "Tableau de bord", "Vue d'ensemble des matchs, des sources et du cache"),
-    ("matches", "Matchs", "Matchs, navigation par date et archive des saisons"),
+    ("matches", "Matchs", "Matchs, navigation par date et liste des matchs par saison"),
     ("analysis", "Analyse", "Classement et cotes calculees par strategie"),
     ("leagues", "Ligues", "Gerez les competitions suivies"),
     ("settings", "Reglages", "Configuration, sources gratuites et cache"),
@@ -284,9 +284,11 @@ class MainWindow(QMainWindow):
             self._go("matches")
             self.matches.show_archive()
             return
-        self._go(key)
+        # Applique la date avant d'afficher la page : on_show() demarre alors le
+        # chargement avec la date demandee et non avec celle du jour.
         if key == "matches" and isinstance(payload, date):
             self.matches.set_date(payload)
+        self._go(key)
 
     def open_analysis(self, fixture: dict) -> None:
         if not fixture:
