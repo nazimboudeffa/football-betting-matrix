@@ -1,9 +1,7 @@
 import sys
-import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional
 
-import requests
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QApplication,
@@ -26,15 +24,8 @@ from PyQt6.QtWidgets import (
 )
 
 from football_betting_matrix.strategies import StrategyCatalog, load_strategies, strategies_dir
-from football_data import football_data_csv_url, fetch_csv_rows, find_fd_row_for_match, format_fd_info
+from football_data import LeagueSpec, build_fixtures, format_fd_info, list_leagues, list_seasons
 from football_betting_matrix import ai as ai_module
-
-
-BASE_RAW_URL = "https://raw.githubusercontent.com/openfootball/football.json/master"
-
-# In-memory cache: url -> (timestamp, data)
-_JSON_CACHE: Dict[str, Tuple[float, Any]] = {}
-_JSON_CACHE_TTL_SECONDS = 60 * 30  # 30 minutes
 
 
 def format_match_label(m: dict) -> str:
@@ -64,7 +55,7 @@ def format_match_label(m: dict) -> str:
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Football Betting Matrix (PyQt6) - openfootball/football.json")
+        self.setWindowTitle("Football Betting Matrix (PyQt6) - football-data.co.uk")
         self.resize(1200, 720)
 
         self.fixtures: List[dict] = []
@@ -79,7 +70,7 @@ class MainWindow(QMainWindow):
         controls = QHBoxLayout()
         controls.addWidget(QLabel("Saison:"))
         self.season_combo = QComboBox()
-        self.season_combo.addItems(["2025", "2025-26", "2026", "2026-27"])
+        self.season_combo.addItems(list_seasons())
         controls.addWidget(self.season_combo)
 
         controls.addWidget(QLabel("Ligue:"))
@@ -117,9 +108,11 @@ class MainWindow(QMainWindow):
         strat_row.addWidget(self.btn_ai)
         right_layout.addLayout(strat_row)
 
-        right_layout.addWidget(QLabel("Cotes calculées:"))
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Marché", "Proba", "Cote", "Signal"])
+        right_layout.addWidget(QLabel("Cotes modèle / bookmakers:"))
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(
+            ["Marché", "Proba", "Cote juste", "Cote bookmaker", "Signal"]
+        )
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setMinimumHeight(80)
         right_layout.addWidget(self.table, 1)
@@ -151,7 +144,6 @@ class MainWindow(QMainWindow):
         self.matches_list.currentRowChanged.connect(self.on_match_selected)
         self.btn_ai.clicked.connect(self.on_analyze_ai)
         self.strategy_combo.currentIndexChanged.connect(lambda _: self.on_strategy_changed())
-        self.matches_list.currentRowChanged.connect(self.on_match_selected)
 
         # Init
         self.on_season_changed(self.season_combo.currentText())
@@ -159,129 +151,63 @@ class MainWindow(QMainWindow):
     def set_status(self, text: str):
         self.status_label.setText(text)
 
-    def fetch_json(self, season: str, filename: str) -> Optional[dict]:
-        url = f"{BASE_RAW_URL}/{season}/{filename}"
-        now = time.time()
-        if url in _JSON_CACHE:
-            ts, data = _JSON_CACHE[url]
-            if now - ts < _JSON_CACHE_TTL_SECONDS:
-                return data
-        try:
-            resp = requests.get(url, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-            _JSON_CACHE[url] = (now, data)
-            return data
-        except Exception as e:
-            QMessageBox.critical(self, "Erreur de chargement", f"Impossible de charger:\n{url}\n\n{e}")
-            return None
-
-    def list_leagues_from_known_set(self, season: str) -> List[Tuple[str, str]]:
-        """Return list of (display_name, filename)."""
-        if season == "2025":
-            return [
-                ("Argentina Liga Profesional", "ar.1.json"),
-                ("Brazil Serie A", "br.1.json"),
-                ("Brazil Serie B", "br.2.json"),
-                ("China Super League", "cn.1.json"),
-                ("Colombia Primera A", "co.1.json"),
-                ("Copa Libertadores", "copa.l.json"),
-                ("Japan J1 League", "jp.1.json"),
-                ("USA MLS", "mls.json"),
-            ]
-        if season == "2026":
-            return [("Brazil Serie A", "br.1.json")]
-        if season == "2025-26":
-            return [
-                ("England Premier League", "en.1.json"),
-                ("England Championship", "en.2.json"),
-                ("England League One", "en.3.json"),
-                ("England League Two", "en.4.json"),
-                ("Germany Bundesliga", "de.1.json"),
-                ("Germany 2. Bundesliga", "de.2.json"),
-                ("Spain La Liga", "es.1.json"),
-                ("Spain La Liga 2", "es.2.json"),
-                ("France Ligue 1", "fr.1.json"),
-                ("France Ligue 2", "fr.2.json"),
-                ("Italy Serie A", "it.1.json"),
-                ("Italy Serie B", "it.2.json"),
-                ("Netherlands Eredivisie", "nl.1.json"),
-                ("Portugal Primeira Liga", "pt.1.json"),
-                ("Belgium Pro League", "be.1.json"),
-                ("Greece Super League", "gr.1.json"),
-                ("Scotland Premiership", "sco.1.json"),
-                ("Turkey Super Lig", "tr.1.json"),
-                ("Austria Bundesliga", "at.1.json"),
-                ("Austria 2. Liga", "at.2.json"),
-            ]
-        if season == "2026-27":
-            return [
-                ("England Premier League", "en.1.json"),
-                ("England Championship", "en.2.json"),
-                ("Germany Bundesliga", "de.1.json"),
-                ("Spain La Liga", "es.1.json"),
-                ("France Ligue 1", "fr.1.json"),
-                ("Italy Serie A", "it.1.json"),
-                ("Netherlands Eredivisie", "nl.1.json"),
-                ("Portugal Primeira Liga", "pt.1.json"),
-            ]
-        return []
-
     def on_season_changed(self, season: str):
         self.league_combo.blockSignals(True)
         self.league_combo.clear()
-        leagues = self.list_leagues_from_known_set(season)
-        if not leagues:
-            self.league_combo.addItem("(aucune ligue listée)", "")
-            self.league_combo.setEnabled(False)
-        else:
-            for name, fname in leagues:
-                self.league_combo.addItem(name, fname)
-            self.league_combo.setEnabled(True)
+        for spec in list_leagues():
+            self.league_combo.addItem(spec.name, spec)
+        self.league_combo.setEnabled(True)
         self.league_combo.blockSignals(False)
-
-        if leagues:
-            self._on_league_combo_changed()
-        else:
-            self.matches_list.clear()
-            self.fixtures = []
-            self.set_status("Aucune ligue disponible pour cette saison.")
+        self._on_league_combo_changed()
 
     def _on_league_combo_changed(self):
-        league_file = self.league_combo.currentData()
-        if not league_file:
+        spec = self.league_combo.currentData()
+        if not isinstance(spec, LeagueSpec):
             return
-        self.on_league_changed(league_file)
+        self.on_league_changed(spec)
 
-    def on_league_changed(self, league_file: str):
-        if not league_file or league_file.startswith("("):
-            return
+    def on_league_changed(self, spec: LeagueSpec):
         season = self.season_combo.currentText()
-        self.set_status(f"Chargement: {season}/{league_file} ...")
+        self.set_status(f"Chargement: football-data.co.uk — {spec.name} {season} ...")
         QApplication.processEvents()
 
-        data = self.fetch_json(season, league_file)
-        if data is None:
+        try:
+            fixtures = build_fixtures(spec, season)
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Erreur de chargement",
+                f"Impossible de charger {spec.name} {season} depuis football-data.co.uk :\n\n{e}",
+            )
             self.set_status("Échec du chargement.")
             return
 
-        name = data.get("name", league_file)
-        self.fixtures = data.get("matches", [])
-
+        self.fixtures = fixtures
         self.matches_list.clear()
-        for m in self.fixtures:
-            self.matches_list.addItem(QListWidgetItem(format_match_label(m)))
+        for match in fixtures:
+            self.matches_list.addItem(QListWidgetItem(format_match_label(match)))
 
-        if self.fixtures:
-            self.matches_list.setCurrentRow(0)
+        if fixtures:
+            # Les prochains matchs sont en fin de liste : on sélectionne le premier
+            # match à venir pour afficher directement ses cotes bookmaker.
+            first_upcoming = next(
+                (index for index, match in enumerate(fixtures) if not match.get("played")),
+                0,
+            )
+            self.matches_list.setCurrentRow(first_upcoming)
         else:
             self.current_match = None
+            self.table.setRowCount(0)
             self.fd_table.setRowCount(0)
             self.fd_table.insertRow(0)
-            self.fd_table.setItem(0, 0, QTableWidgetItem("Football-data.co.uk"))
-            self.fd_table.setItem(0, 1, QTableWidgetItem("Aucun match."))
+            self.fd_table.setItem(0, 0, QTableWidgetItem("football-data.co.uk"))
+            self.fd_table.setItem(0, 1, QTableWidgetItem("Aucun match pour cette ligue/saison."))
 
-        self.set_status(f"{name} — {len(self.fixtures)} match(s) chargés.")
+        played = sum(1 for match in fixtures if match.get("played"))
+        self.set_status(
+            f"{spec.name} {season} — {len(fixtures)} match(s) "
+            f"({played} joués, {len(fixtures) - played} à venir)."
+        )
 
     def on_match_selected(self, row: int):
         if row < 0 or row >= len(self.fixtures):
@@ -302,118 +228,107 @@ class MainWindow(QMainWindow):
         self.update_odds_table()
 
     def update_football_data_panel(self):
+        """Affiche la ligne CSV brute du match sélectionné (déjà chargée)."""
         self.fd_table.setRowCount(0)
         if not self.current_match:
-            self.fd_table.insertRow(0)
-            self.fd_table.setItem(0, 0, QTableWidgetItem("Football-data.co.uk"))
-            self.fd_table.setItem(0, 1, QTableWidgetItem("Sélectionne un match."))
+            self._add_fd_row("football-data.co.uk", "Sélectionne un match.")
             return
+        spec = self.league_combo.currentData()
         season = self.season_combo.currentText()
-        league_file = self.league_combo.currentData()
-        if not league_file:
-            self.fd_table.insertRow(0)
-            self.fd_table.setItem(0, 0, QTableWidgetItem("Football-data.co.uk"))
-            self.fd_table.setItem(0, 1, QTableWidgetItem("Aucune ligue sélectionnée."))
+        source = f"football-data.co.uk — {spec.name if spec else ''} {season}".strip()
+        self._add_fd_row("Source", source)
+
+        items = format_fd_info(self.current_match.get("fd_row") or {})
+        if not items:
+            self._add_fd_row("Info", "Aucune statistique disponible pour ce match.")
             return
-        url = football_data_csv_url(season, league_file)
-        if not url:
-            self.fd_table.insertRow(0)
-            self.fd_table.setItem(0, 0, QTableWidgetItem("Football-data.co.uk"))
-            self.fd_table.setItem(0, 1, QTableWidgetItem("Non disponible pour cette ligue/saison (mapping football-data.co.uk manquant)."))
-            return
+        for key, value in items:
+            self._add_fd_row(str(key), str(value))
+
+    def _add_fd_row(self, key: str, value: str):
+        row = self.fd_table.rowCount()
+        self.fd_table.insertRow(row)
+        self.fd_table.setItem(row, 0, QTableWidgetItem(key))
+        self.fd_table.setItem(row, 1, QTableWidgetItem(value))
+
+    def _analysis_for_current_match(self):
+        """Calcule les probabilités du modèle avec les vrais IDs d'équipe."""
+        prob_strategy = self.catalog.probability_model()
+        if not (prob_strategy and prob_strategy.analyze):
+            return None, None, "Aucune stratégie d'analyse (analyze)."
         m = self.current_match
-        home_name = m.get("team1") or (m.get("teams") or {}).get("home", {}).get("name") or "Home"
-        away_name = m.get("team2") or (m.get("teams") or {}).get("away", {}).get("name") or "Away"
-        date = m.get("date")
-        self.fd_table.insertRow(0)
-        self.fd_table.setItem(0, 0, QTableWidgetItem("Chargement..."))
-        self.fd_table.setItem(0, 1, QTableWidgetItem(url))
-        QApplication.processEvents()
+        teams = m.get("teams") or {}
+        home = teams.get("home") or {}
+        away = teams.get("away") or {}
         try:
-            rows = fetch_csv_rows(url)
-            found = find_fd_row_for_match(rows, date, home_name, away_name)
-            self.fd_table.setRowCount(0)
-            if not found:
-                self.fd_table.insertRow(0)
-                self.fd_table.setItem(0, 0, QTableWidgetItem("Football-data.co.uk"))
-                self.fd_table.setItem(0, 1, QTableWidgetItem("Aucun match correspondant trouvé dans le CSV."))
-                return
-            items = format_fd_info(found)
-            if not items:
-                self.fd_table.insertRow(0)
-                self.fd_table.setItem(0, 0, QTableWidgetItem("Football-data.co.uk"))
-                self.fd_table.setItem(0, 1, QTableWidgetItem("Aucune info trouvée."))
-                return
-            for k, v in items:
-                r = self.fd_table.rowCount()
-                self.fd_table.insertRow(r)
-                self.fd_table.setItem(r, 0, QTableWidgetItem(str(k)))
-                self.fd_table.setItem(r, 1, QTableWidgetItem(str(v)))
+            analysis = prob_strategy.analyze(
+                fixtures=self.fixtures,
+                home_id=home.get("id"),
+                away_id=away.get("id"),
+                home_name=m.get("team1") or home.get("name") or "Home",
+                away_name=m.get("team2") or away.get("name") or "Away",
+                before_date=m.get("date"),
+            )
         except Exception as e:
-            self.fd_table.setRowCount(0)
-            self.fd_table.insertRow(0)
-            self.fd_table.setItem(0, 0, QTableWidgetItem("Erreur"))
-            self.fd_table.setItem(0, 1, QTableWidgetItem(str(e)))
+            return None, None, str(e)
+        return analysis, prob_strategy, None
 
     def update_odds_table(self):
         self.table.setRowCount(0)
-        if not self.current_match:
-            return
-        if not self.catalog.strategies:
+        if not self.current_match or not self.catalog.strategies:
             return
         strategy_id = self.strategy_combo.currentData()
         strategy = self.catalog.get(strategy_id) if strategy_id else self.catalog.probability_model()
         if strategy is None:
             return
 
-        m = self.current_match
-        home_name = m.get("team1") or (m.get("teams") or {}).get("home", {}).get("name") or "Home"
-        away_name = m.get("team2") or (m.get("teams") or {}).get("away", {}).get("name") or "Away"
-        date = m.get("date")
-        prob_strategy = self.catalog.probability_model()
-        if not (prob_strategy and prob_strategy.analyze):
-            self.table.insertRow(0)
-            self.table.setItem(0, 0, QTableWidgetItem("Info"))
-            self.table.setItem(0, 1, QTableWidgetItem("-"))
-            self.table.setItem(0, 2, QTableWidgetItem("-"))
-            self.table.setItem(0, 3, QTableWidgetItem("Aucune stratégie d'analyse (analyze)."))
-            return
-        try:
-            analysis = prob_strategy.analyze(
-                fixtures=self.fixtures,
-                home_id=None,
-                away_id=None,
-                home_name=home_name,
-                away_name=away_name,
-                before_date=date,
-            )
-        except Exception as e:
-            self.table.insertRow(0)
-            self.table.setItem(0, 0, QTableWidgetItem("Erreur"))
-            self.table.setItem(0, 1, QTableWidgetItem("-"))
-            self.table.setItem(0, 2, QTableWidgetItem("-"))
-            self.table.setItem(0, 3, QTableWidgetItem(str(e)))
+        analysis, prob_strategy, error = self._analysis_for_current_match()
+        if error:
+            self._add_odds_error(error)
             return
         probs = analysis.get("probabilities") if isinstance(analysis, dict) else None
         if not probs:
             return
+
+        m = self.current_match
         try:
-            rows = strategy.run(probs, context={"match": m})
+            rows = strategy.run(probs, context={"match": m, "odds": m.get("odds") or {}})
         except Exception as e:
-            self.table.insertRow(0)
-            self.table.setItem(0, 0, QTableWidgetItem("Erreur"))
-            self.table.setItem(0, 1, QTableWidgetItem("-"))
-            self.table.setItem(0, 2, QTableWidgetItem("-"))
-            self.table.setItem(0, 3, QTableWidgetItem(str(e)))
+            self._add_odds_error(str(e))
             return
-        for r in rows:
-            row_idx = self.table.rowCount()
-            self.table.insertRow(row_idx)
-            self.table.setItem(row_idx, 0, QTableWidgetItem(str(r.get("label", ""))))
-            self.table.setItem(row_idx, 1, QTableWidgetItem(str(r.get("prob", ""))))
-            self.table.setItem(row_idx, 2, QTableWidgetItem(str(r.get("odd", ""))))
-            self.table.setItem(row_idx, 3, QTableWidgetItem(str(r.get("signal", "") or "")))
-        self.details_label.setText(f"{home_name} vs {away_name} ({date}) — Stratégie: {strategy.name}")
+
+        market_odds = m.get("odds") or {}
+        for row in rows:
+            key = row.get("key")
+            best = (market_odds.get(key) or {}).get("best") if key else None
+            bookmaker = best[0] if best else "-"
+            market_odd = row.get("market_odd") or (best[1] if best else None)
+            signal = str(row.get("signal") or "")
+            if market_odd and "value" not in signal.lower() and "VALUE" not in signal:
+                edge = float(row["prob"]) * float(market_odd) - 1
+                signal = f"{signal + ' — ' if signal else ''}{edge:+.1%}"
+            idx = self.table.rowCount()
+            self.table.insertRow(idx)
+            self.table.setItem(idx, 0, QTableWidgetItem(str(row.get("label", ""))))
+            try:
+                prob_text = f"{float(row['prob']):.2%}"
+            except (TypeError, ValueError, KeyError):
+                prob_text = "-"
+            self.table.setItem(idx, 1, QTableWidgetItem(prob_text))
+            self.table.setItem(idx, 2, QTableWidgetItem(str(row.get("odd", ""))))
+            self.table.setItem(idx, 3, QTableWidgetItem(f"{market_odd} ({bookmaker})" if market_odd else "-"))
+            self.table.setItem(idx, 4, QTableWidgetItem(signal))
+
+        known = "modèle" if analysis.get("known_home") and analysis.get("known_away") else "moyennes de ligue"
+        self.details_label.setText(
+            f"{m.get('team1')} vs {m.get('team2')} ({m.get('date')}) — "
+            f"{prob_strategy.name} → {strategy.name} — probabilités: {known}"
+        )
+
+    def _add_odds_error(self, message: str):
+        self.table.insertRow(0)
+        for column in range(5):
+            self.table.setItem(0, column, QTableWidgetItem("-" if column < 4 else message))
 
     def _build_ai_analysis_payload(self) -> Optional[dict]:
         if not self.current_match:
@@ -430,41 +345,37 @@ class MainWindow(QMainWindow):
             return None
 
         m = self.current_match
-        home_name = m.get("team1") or (m.get("teams") or {}).get("home", {}).get("name") or "Home"
-        away_name = m.get("team2") or (m.get("teams") or {}).get("away", {}).get("name") or "Away"
+        teams = m.get("teams") or {}
+        home = teams.get("home") or {}
+        away = teams.get("away") or {}
+        home_name = m.get("team1") or home.get("name") or "Home"
+        away_name = m.get("team2") or away.get("name") or "Away"
         date = m.get("date")
 
-        prob_strategy = self.catalog.probability_model()
-        if not (prob_strategy and prob_strategy.analyze):
-            QMessageBox.warning(self, "Stratégie", "Aucune stratégie avec analyze() trouvée (ex: Poisson/Ratio).")
-            return None
-        try:
-            analysis = prob_strategy.analyze(
-                fixtures=self.fixtures,
-                home_id=None,
-                away_id=None,
-                home_name=home_name,
-                away_name=away_name,
-                before_date=date,
-            )
-        except Exception as e:
-            QMessageBox.warning(self, "Erreur analyse", f"Erreur lors du calcul des probabilités:\n{e}")
+        analysis, _, error = self._analysis_for_current_match()
+        if error:
+            QMessageBox.warning(self, "Erreur analyse", f"Erreur lors du calcul des probabilités:\n{error}")
             return None
         probs = analysis.get("probabilities") if isinstance(analysis, dict) else None
         if not probs:
             QMessageBox.warning(self, "Probabilités", "Impossible de calculer les probabilités pour ce match.")
             return None
 
+        market_odds = m.get("odds") or {}
         try:
-            rows = strategy.run(probs, context={"match": m})
+            rows = strategy.run(probs, context={"match": m, "odds": market_odds})
         except Exception as e:
             QMessageBox.warning(self, "Erreur stratégie", f"Erreur lors de l'évaluation:\n{e}")
             return None
 
         payload = {
-            "match": {"home": home_name, "away": away_name, "date": date},
+            "match": {"home": home_name, "away": away_name, "date": date, "league": m.get("league")},
             "model": analysis,
             "strategy": {"id": strategy.id, "name": strategy.name, "rows": rows},
+            "market_odds": {
+                key: {"best": value.get("best"), "avg": value.get("avg")}
+                for key, value in market_odds.items()
+            },
             "league": self.league_combo.currentText(),
             "season": self.season_combo.currentText(),
         }

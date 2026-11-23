@@ -2,10 +2,10 @@
 
 Ce dossier est **hors du coeur du logiciel** : le package `football_betting_matrix`
 ne contient aucun calcul de probabilites. Il charge simplement les strategies
-placees ici et leur demande le modele et les cotes affiches dans la page **Analyse**.
+placees ici et leur demande le modele et les cotes affiches dans l'interface.
 
-Les strategies sont detectees au demarrage, ou apres un clic sur **Recharger**
-dans la page Analyse. Aucun redemarrage n'est necessaire.
+Les strategies sont detectees au demarrage et selectionnables dans la liste
+**Strategie**. Les donnees de match et de cotes viennent de football-data.co.uk.
 
 ## Contrat d'une strategie
 
@@ -31,12 +31,19 @@ def analyze(fixtures, home_id, away_id, home_name, away_name, before_date=None):
 Arguments de `evaluate()` :
 
 - `probabilities` : `{"home": 0.51, "draw": 0.26, ...}` (probabilites du modele).
-- `context` : dictionnaire reserve aux futures options (non utilise pour l'instant).
+- `context` : contient `match` (ligne football-data convertie) et `odds` (cotes
+  reelles par marche, avec `best = (bookmaker, cote)` et `avg`).
 
 Chaque ligne renvoyee doit contenir au moins `label`, `prob` et `odd` (la cote
-calculee, en decimal europeen). Les champs optionnels sont :
+calculee, en decimal europeen). `prob` reste un decimal entre 0 et 1 dans le
+contrat : l'interface l'affiche automatiquement en pourcentage. Les champs
+optionnels sont :
 
 - `fair_odd` : cote juste de reference (`1 / prob`), affichee dans sa colonne ;
+- `key` : identifiant du marche (`home`, `draw`, `over25`, ...) pour retrouver la
+  cote bookmaker correspondante ;
+- `market_odd` / `bookmaker` : cote reelle et bookmaker affiches dans la colonne
+  « Cote bookmaker » ;
 - `signal` : texte libre affiche dans la colonne « Signal » ;
 - `highlight` : `True` pour mettre la ligne en evidence.
 
@@ -81,3 +88,6 @@ la liste des strategies.
 - `ratio_rangs.py` : fichier autonome sans Poisson ; le ratio rang adverse /
   somme des rangs pondere les probabilites domicile / exterieur de la ligue (pour
   garder l'avantage du terrain), avec amortissement en debut de saison.
+- `value_bookmaker.py` : ne calcule pas de probabilites ; compare celles du modele
+  avec la meilleure cote disponible chez les bookmakers et affiche l'edge
+  (`probabilite * cote - 1`).
