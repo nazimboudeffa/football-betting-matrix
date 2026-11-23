@@ -468,6 +468,21 @@ class MainWindow(QMainWindow):
             "league": self.league_combo.currentText(),
             "season": self.season_combo.currentText(),
         }
+        # Explicit extras to help the AI
+        home_info = (analysis or {}).get("home") or {}
+        away_info = (analysis or {}).get("away") or {}
+        payload["teams_form"] = {
+            "home": {"name": home_name, "form": home_info.get("form", []), "rank": home_info.get("rank"), "played": home_info.get("played")},
+            "away": {"name": away_name, "form": away_info.get("form", []), "rank": away_info.get("rank"), "played": away_info.get("played")},
+        }
+        # Standings snapshot from model if present
+        if "n_teams" in (analysis or {}):
+            payload["standings_context"] = {
+                "n_teams": analysis.get("n_teams"),
+                "reliability": analysis.get("reliability"),
+                "sample_matches": analysis.get("sample_matches"),
+                "league_rates": analysis.get("league_rates"),
+            }
         return payload
 
     def on_analyze_ai(self):

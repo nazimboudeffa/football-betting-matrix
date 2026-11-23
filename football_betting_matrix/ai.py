@@ -11,6 +11,8 @@ import requests
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
 DEFAULT_PROMPT = (
     "Analyse ce match en te basant uniquement sur les donnees ci-dessous. "
+    "Prends en compte la forme recente des equipes (champ 'teams_form.form', ex: V/N/D) et leur classement "
+    "(rangs, context de classement) quand ils sont fournis. "
     "Decris les probabilites du modele, compare les cotes estimees, "
     "et rappelle qu'aucun resultat n'est garanti. Ne donne pas de conseil de pari."
 )
