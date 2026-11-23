@@ -108,27 +108,41 @@ class MainWindow(QMainWindow):
         strat_row.addWidget(self.btn_ai)
         right_layout.addLayout(strat_row)
 
-        right_layout.addWidget(QLabel("Cotes modèle / bookmakers:"))
+        right_splitter = QSplitter(Qt.Orientation.Vertical)
+
+        odds_panel = QWidget()
+        odds_layout = QVBoxLayout(odds_panel)
+        odds_layout.setContentsMargins(0, 0, 0, 0)
+        odds_layout.addWidget(QLabel("Cotes modèle / bookmakers:"))
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(
             ["Marché", "Proba", "Cote juste", "Cote bookmaker", "Signal"]
         )
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setMinimumHeight(80)
-        right_layout.addWidget(self.table, 1)
+        odds_layout.addWidget(self.table, 1)
 
         self.details_label = QLabel("Choisis une saison, une ligue, un match, puis une stratégie.")
         self.details_label.setWordWrap(True)
         self.details_label.setMaximumHeight(50)
-        right_layout.addWidget(self.details_label)
+        odds_layout.addWidget(self.details_label)
+        right_splitter.addWidget(odds_panel)
 
-        right_layout.addWidget(QLabel("Infos bookmakers / stats (football-data.co.uk) :"))
+        fd_panel = QWidget()
+        fd_layout = QVBoxLayout(fd_panel)
+        fd_layout.setContentsMargins(0, 0, 0, 0)
+        fd_layout.addWidget(QLabel("Infos bookmakers / stats (football-data.co.uk) :"))
         self.fd_table = QTableWidget(0, 2)
         self.fd_table.setHorizontalHeaderLabels(["Info", "Valeur"])
         self.fd_table.horizontalHeader().setStretchLastSection(True)
         self.fd_table.setMinimumHeight(80)
         self.fd_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        right_layout.addWidget(self.fd_table, 1)
+        fd_layout.addWidget(self.fd_table, 1)
+        right_splitter.addWidget(fd_panel)
+
+        right_splitter.setStretchFactor(0, 2)
+        right_splitter.setStretchFactor(1, 1)
+        right_layout.addWidget(right_splitter, 1)
 
         splitter.addWidget(right)
         splitter.setStretchFactor(0, 1)
