@@ -104,7 +104,7 @@ class MainWindow(QMainWindow):
         else:
             self.strategy_combo.addItem("(aucune stratégie trouvée)", "")
         strat_row.addWidget(self.strategy_combo, 1)
-        self.btn_ai = QPushButton("Analyser avec l'IA (Ollama)")
+        self.btn_ai = QPushButton("Analyser avec l'IA (Llama App)")
         strat_row.addWidget(self.btn_ai)
         right_layout.addLayout(strat_row)
 
@@ -418,21 +418,26 @@ class MainWindow(QMainWindow):
         try:
             models = ai_module.list_models()
         except Exception as e:
-            QMessageBox.warning(self, "Ollama", str(e))
+            QMessageBox.warning(self, "Llama App", str(e))
             return
         if not models:
-            QMessageBox.warning(self, "Ollama", "Aucun modèle Ollama trouvé. Installe un modèle (ex: ollama pull llama3).")
+            QMessageBox.warning(
+                self,
+                "Llama App",
+                "Aucun modèle Llama App trouvé. Installe un modèle dans l'application "
+                "et charge-le avant de relancer l'analyse.",
+            )
             return
 
         context = ai_module.build_context(payload)
         default_prompt = ai_module.DEFAULT_PROMPT + "\n\n--- DONNEES ---\n" + context
 
         dlg = QDialog(self)
-        dlg.setWindowTitle("Analyse IA (Ollama)")
+        dlg.setWindowTitle("Analyse IA (Llama App)")
         dlg.resize(900, 700)
         layout = QVBoxLayout(dlg)
 
-        layout.addWidget(QLabel("Modèle Ollama:"))
+        layout.addWidget(QLabel("Modèle Llama App:"))
         model_cb = QComboBox()
         model_cb.addItems(models)
         layout.addWidget(model_cb)
@@ -461,17 +466,17 @@ class MainWindow(QMainWindow):
             model = model_cb.currentText().strip()
             prompt = prompt_edit.toPlainText().strip()
             if not model:
-                QMessageBox.warning(dlg, "Ollama", "Choisis un modèle.")
+                QMessageBox.warning(dlg, "Llama App", "Choisis un modèle.")
                 return
             if not prompt:
                 QMessageBox.warning(dlg, "Prompt", "Le prompt est vide.")
                 return
-            result_edit.setPlainText("Analyse en cours (Ollama)...")
+            result_edit.setPlainText("Analyse en cours (Llama App)...")
             btn_run.setEnabled(False)
             btn_cancel.setEnabled(False)
             QApplication.processEvents()
             try:
-                result = ai_module.ask_ollama(prompt, model=model)
+                result = ai_module.ask_llama_app(prompt, model=model)
                 result_edit.setPlainText(result)
                 self.details_label.setText(
                     f"{payload['match']['home']} vs {payload['match']['away']} — Analyse IA terminée ({model})."
